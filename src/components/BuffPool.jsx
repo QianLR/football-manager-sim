@@ -39,13 +39,13 @@ const BuffPool = () => {
   const { activeBuffs } = state;
 
   return (
-    <div className="retro-box p-3 mb-4">
-        <h3 className="text-base font-bold font-mono uppercase border-b-2 border-black pb-1 mb-2">
+    <div className="retro-box p-2">
+        <h3 className="text-sm font-bold font-mono uppercase border-b-2 border-black pb-1 mb-2">
             状态池 (BUFFS/DEBUFFS)
         </h3>
         
         {activeBuffs.length === 0 ? (
-            <div className="text-gray-500 font-mono italic text-center py-2 text-sm">
+            <div className="text-gray-500 font-mono italic text-center py-2 text-xs">
                 当前无特殊状态
             </div>
         ) : (
@@ -61,9 +61,9 @@ const BuffPool = () => {
 
                     return (
                         <div key={buffId} className={`border-2 ${borderColor} ${bgColor} p-2 flex items-start gap-2`}>
-                            <div className="text-xl">{def.icon}</div>
+                            <div className="text-base">{def.icon}</div>
                             <div>
-                                <div className={`font-bold text-sm ${textColor}`}>{def.name}</div>
+                                <div className={`font-bold text-xs ${textColor}`}>{def.name}</div>
                                 <div className="text-[10px] text-gray-700 font-mono leading-tight">{def.description}</div>
                             </div>
                         </div>

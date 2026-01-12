@@ -18,6 +18,7 @@ const initialState = {
   currentEvent: null,
   activeDecisionsTaken: [], // Track decision types taken this month
   decisionHistory: [], // Track all decisions taken for condition checking
+  randomEventsThisYear: [],
   specialMechanicState: {
     canteenOpen: true, // Man Utd
     roofClosed: false, // Real Madrid
@@ -27,8 +28,94 @@ const initialState = {
   activeBuffs: [], // List of active buff/debuff IDs
   tabloidCount: 0,
   decisionCountThisMonth: 0, // Track number of decisions taken this month
-  easterEggTriggered: false
+  easterEggTriggered: false,
+  pointsThisQuarter: 0,
+  queuedEvent: null
 };
+
+function enforceRainbowArmband(stats, activeBuffs) {
+  if (!stats || stats.mediaSupport === undefined) return;
+  if (!activeBuffs || !activeBuffs.includes('rainbow_armband')) return;
+  stats.mediaSupport = Math.max(10, stats.mediaSupport);
+}
+
+function buildTabloidBreakingEvent() {
+  return {
+    id: 'tabloid_breaking',
+    title: 'Breaking！！',
+    description: '月亮报为您带来有关[俱乐部名字]主教练[教练名字]的独家报道，就在今日头版。点击即可查看！',
+    options: [
+      {
+        text: '点击查看',
+        effects: {},
+        nextEvent: {
+          id: 'tabloid_headline',
+          title: '头条新闻',
+          description: '你的丑闻被曝光，引来轩然大波。管理层对你很不满意，你在新闻报道中的口碑也下降了。',
+          effects: { mediaSupport: -15, boardSupport: -10 }
+        }
+      }
+    ]
+  };
+}
+
+function buildQuarterExpectationEvent({ quarter, ranking, points, metExpectation, authority }) {
+  const quarterTextMap = { 1: '一', 2: '二', 3: '三', 4: '四' };
+  const quarterText = quarterTextMap[quarter] || String(quarter);
+
+  if (metExpectation) {
+    return {
+      id: 'quarter_expectation_report',
+      title: `第${quarterText}个季度答卷`,
+      description: `你以第${ranking}名和${points}分交出了第${quarterText}个季度的答卷。高层对你的执教很满意。`,
+      effects: { boardSupport: 10 }
+    };
+  }
+
+  if (authority < 70) {
+    return {
+      id: 'quarter_expectation_report',
+      title: `第${quarterText}个季度答卷`,
+      description: `你以第${ranking}名和${points}分交出了第${quarterText}个季度的答卷。很明显，管理层对这个成绩并不满意，他们要求更高的排名。即使那扇象征高层核心的大门总是对你紧闭，你也能听到会议中已有试图更换你的窃窃私语。`,
+      effects: { boardSupport: -25 }
+    };
+  }
+
+  return {
+    id: 'quarter_expectation_report',
+    title: `第${quarterText}个季度答卷`,
+    description: `你以第${ranking}名和${points}分交出了第${quarterText}个季度的答卷。很明显，管理层对这个成绩并不满意，他们要求更高的排名。你出席了高层的会议，大家对俱乐部的未来展开了讨论。坐在椅子上的三小时里，你能感受到许多不怀好意的目光。`,
+    effects: { boardSupport: -25 }
+  };
+}
+
+function cloneAndReplaceEventText(event, state) {
+  if (!event) return null;
+  const cloned = { ...event };
+
+  if (cloned.description) {
+    cloned.description = cloned.description
+      .replace(/\[名字\]/g, state.playerName)
+      .replace(/\[俱乐部\]/g, state.currentTeam.name)
+      .replace(/\[执教理念\]/g, state.coachingPhilosophy)
+      .replace(/\[教练名字\]/g, state.playerName)
+      .replace(/\[俱乐部名字\]/g, state.currentTeam.name);
+  }
+
+  if (cloned.options) {
+    cloned.options = cloned.options.map(opt => ({
+      ...opt,
+      text: opt.text
+        .replace(/\[名字\]/g, state.playerName)
+        .replace(/\[俱乐部\]/g, state.currentTeam.name)
+        .replace(/\[执教理念\]/g, state.coachingPhilosophy)
+        .replace(/\[教练名字\]/g, state.playerName)
+        .replace(/\[俱乐部名字\]/g, state.currentTeam.name)
+    }));
+  }
+
+  return cloned;
+}
 
 function gameReducer(state, action) {
   switch (action.type) {
@@ -71,6 +158,8 @@ function gameReducer(state, action) {
           }
         }
       });
+
+      enforceRainbowArmband(newStats, state.activeBuffs);
       
       // Check Game Over conditions
       let nextGameStateAfterUpdate = state.gameState;
@@ -98,7 +187,7 @@ function gameReducer(state, action) {
         }
 
         // Check authority requirement for using funds
-        if (effects.funds < 0 && state.stats.authority <= 70) {
+        if (effects.funds < 0 && state.stats.authority < 70) {
             return state;
         }
 
@@ -119,8 +208,14 @@ function gameReducer(state, action) {
             }
         }
 
+        let pointsThisQuarterAfterDecision = state.pointsThisQuarter;
+        if (effects.points_bonus) {
+            statsAfterDecision.points += effects.points_bonus;
+            pointsThisQuarterAfterDecision += effects.points_bonus;
+        }
+
         Object.keys(effects).forEach(key => {
-             if (key === 'set_board_support_to_1' || key === 'chance_tabloid' || key === 'special_rainbow_armband') return; // Skip special flags
+             if (key === 'set_board_support_to_1' || key === 'chance_tabloid' || key === 'special_rainbow_armband' || key === 'points_bonus') return; // Skip special flags
 
              if (statsAfterDecision[key] !== undefined) {
                 // Special check for mediaSupport: if 0, cannot decrease further
@@ -130,6 +225,11 @@ function gameReducer(state, action) {
 
                 // If we just set boardSupport to 1, don't add/subtract from it in this loop for this decision
                 if (effects.set_board_support_to_1 && key === 'boardSupport') {
+                    return;
+                }
+
+                // If we just set mediaSupport to 100, don't add/subtract from it in this loop for this decision
+                if (effects.set_board_support_to_1 && key === 'mediaSupport') {
                     return;
                 }
 
@@ -171,19 +271,10 @@ function gameReducer(state, action) {
         let scandalEvent = null;
         if (newTabloidCount >= 3) {
             newTabloidCount = 0;
-            scandalEvent = {
-                id: 'tabloid_scandal',
-                title: '头条丑闻爆发！',
-                description: '你的私生活被媒体曝光，引发轩然大波。',
-                effects: { mediaSupport: -15, boardSupport: -10 }
-            };
-             // Apply scandal effects immediately
-             // Check mediaSupport lower bound
-             if (statsAfterDecision.mediaSupport > 0) {
-                 statsAfterDecision.mediaSupport = Math.max(0, statsAfterDecision.mediaSupport - 15);
-             }
-             statsAfterDecision.boardSupport = Math.max(0, statsAfterDecision.boardSupport - 10);
+            scandalEvent = buildTabloidBreakingEvent();
         }
+
+        enforceRainbowArmband(statsAfterDecision, newActiveBuffs);
         
         // Record decision history for conditions (e.g. "flirt_rival")
         // We store "type_optionId" or just "type" if no option
@@ -199,6 +290,7 @@ function gameReducer(state, action) {
             tabloidCount: newTabloidCount,
             specialMechanicState: newSpecialState,
             activeBuffs: newActiveBuffs,
+            pointsThisQuarter: pointsThisQuarterAfterDecision,
             currentEvent: scandalEvent // Trigger scandal if happened
         };
 
@@ -212,6 +304,10 @@ function gameReducer(state, action) {
         let victory = false;
         let nextTabloidCount = state.tabloidCount;
         let nextActiveBuffs = [...state.activeBuffs];
+        let pointsThisQuarterAfterMonth = state.pointsThisQuarter;
+        let forcedEvent = null;
+        let queuedEvent = null;
+        let nextRandomEventsThisYear = [...(state.randomEventsThisYear || [])];
 
         // Monthly Canteen Check (Man Utd)
         if (state.currentTeam.id === 'man_utd' && !state.specialMechanicState.canteenOpen) {
@@ -251,13 +347,23 @@ function gameReducer(state, action) {
             nextTabloidCount += 1;
             if (nextTabloidCount >= 3) {
                 nextTabloidCount = 0;
-                // Trigger scandal effects
-                statsAfterMonth.mediaSupport = Math.max(0, statsAfterMonth.mediaSupport - 15);
-                statsAfterMonth.boardSupport = Math.max(0, statsAfterMonth.boardSupport - 10);
+                forcedEvent = buildTabloidBreakingEvent();
             }
         } else {
             nextActiveBuffs = nextActiveBuffs.filter(b => b !== 'turmoil');
         }
+
+        // Monthly Match Settlement (4 matches)
+        let pointsGainedThisMonth = 0;
+        const tacticsThisMonth = statsAfterMonth.tactics;
+        if (tacticsThisMonth >= 10) pointsGainedThisMonth = 12;
+        else if (tacticsThisMonth >= 9) pointsGainedThisMonth = 10;
+        else if (tacticsThisMonth >= 8) pointsGainedThisMonth = 8;
+        else if (tacticsThisMonth >= 7) pointsGainedThisMonth = 7;
+        else pointsGainedThisMonth = 5;
+
+        statsAfterMonth.points += pointsGainedThisMonth;
+        pointsThisQuarterAfterMonth += pointsGainedThisMonth;
 
         // Quarter logic
         if (nextMonth > 3) {
@@ -265,24 +371,8 @@ function gameReducer(state, action) {
             nextQuarter += 1;
             
             // --- Quarterly Settlement Logic ---
-            
-            // 1. Calculate Points
-            let pointsGained = 0;
-            const tactics = statsAfterMonth.tactics;
-            
-            if (tactics >= 10) pointsGained = 36;
-            else if (tactics >= 9) pointsGained = 30;
-            else if (tactics >= 8) pointsGained = 25;
-            else if (tactics >= 7) pointsGained = 20;
-            else pointsGained = 15;
 
-            // Add points from "Coffee with Ref" bonus if any (handled in TAKE_DECISION effects usually, but points are special)
-            // Actually points_bonus in TAKE_DECISION adds directly to stats.points. 
-            // But here we calculate *match* points based on tactics.
-            
-            statsAfterMonth.points += pointsGained;
-
-            // 2. Calculate Ranking (Simplified Simulation)
+            // 1. Calculate Ranking (Simplified Simulation)
             // We need a way to determine ranking based on total points vs "virtual" league table.
             // For v1.0, let's map points to a rough ranking.
             // Max points per quarter = 36. Max total = 144.
@@ -309,16 +399,8 @@ function gameReducer(state, action) {
             
             // 3. Check Expectations
             const expectation = state.currentTeam.expectations.ranking;
-            let boardChange = 0;
+            const metExpectation = estimatedRanking <= expectation;
             let mediaChange = 0;
-            
-            if (estimatedRanking <= expectation) {
-                // Met expectations
-                boardChange += 10; 
-            } else {
-                // Failed expectations
-                boardChange -= 25; 
-            }
 
             // Special Mechanic: Real Madrid Roof
             if (state.currentTeam.id === 'real_madrid' && state.specialMechanicState.roofClosed) {
@@ -327,8 +409,6 @@ function gameReducer(state, action) {
             }
             
             // Apply changes with clamping
-            statsAfterMonth.boardSupport = Math.max(0, Math.min(100, statsAfterMonth.boardSupport + boardChange));
-            
             // Media support check for roof
             if (mediaChange !== 0) {
                  if (statsAfterMonth.mediaSupport === 0 && mediaChange < 0) {
@@ -338,12 +418,13 @@ function gameReducer(state, action) {
                  }
             }
 
-            settlementEvent = {
-                id: 'quarterly_report',
-                title: `第 ${state.quarter} 季度结算`,
-                description: `本季度获得积分: ${pointsGained}。当前总积分: ${statsAfterMonth.points}。预估排名: 第 ${estimatedRanking} 名。`,
-                effects: {} // Effects already applied
-            };
+            settlementEvent = buildQuarterExpectationEvent({
+                quarter: state.quarter,
+                ranking: estimatedRanking,
+                points: statsAfterMonth.points,
+                metExpectation,
+                authority: statsAfterMonth.authority
+            });
             
             // Check for Victory (End of Season)
             if (state.quarter === 4) { // Assuming 4 quarters per season
@@ -351,6 +432,8 @@ function gameReducer(state, action) {
                     victory = true;
                 }
             }
+
+            pointsThisQuarterAfterMonth = 0;
         }
         
         // Year logic
@@ -360,53 +443,90 @@ function gameReducer(state, action) {
             // Season Finale Logic would go here
         }
 
-        // Random Event Logic (Only if not a settlement event)
-        if (!settlementEvent) {
-            const globalEvents = eventsData.randomEvents.global;
-            const teamEvents = eventsData.randomEvents.teamSpecific[state.currentTeam.id] || [];
-            const allEvents = [...globalEvents, ...teamEvents];
-            
-            // Filter events based on conditions
-            const validEvents = allEvents.filter(event => {
-                if (!event.condition) return true;
-                
-                if (event.condition.type === 'decision_history') {
-                    // Check if specific decision option was taken
-                    // e.g. value="risk", detail="rival_coach" -> "risk_rival_coach"
-                    const requiredDecision = `${event.condition.value}_${event.condition.detail}`;
-                    return state.decisionHistory.includes(requiredDecision);
-                }
-                return true;
-            });
+        if (nextYear !== state.year) {
+            nextRandomEventsThisYear = [];
+        }
 
-            if (validEvents.length > 0) {
-                eventToTrigger = validEvents[Math.floor(Math.random() * validEvents.length)];
-                
-                // Dynamic Text Replacement
-                if (eventToTrigger) {
-                    eventToTrigger = { ...eventToTrigger }; // Clone to avoid mutating data
-                    eventToTrigger.description = eventToTrigger.description
-                        .replace(/\[名字\]/g, state.playerName)
-                        .replace(/\[俱乐部\]/g, state.currentTeam.name)
-                        .replace(/\[执教理念\]/g, state.coachingPhilosophy);
-                        
-                    if (eventToTrigger.options) {
-                        eventToTrigger.options = eventToTrigger.options.map(opt => ({
-                            ...opt,
-                            text: opt.text
-                                .replace(/\[名字\]/g, state.playerName)
-                                .replace(/\[俱乐部\]/g, state.currentTeam.name)
-                                .replace(/\[执教理念\]/g, state.coachingPhilosophy)
-                        }));
-                    }
+        // Random Event Logic
+        const globalEvents = eventsData.randomEvents.global;
+        const teamEvents = eventsData.randomEvents.teamSpecific[state.currentTeam.id] || [];
+        const allEvents = [...globalEvents, ...teamEvents];
+        
+        // Filter events based on conditions
+        const validEvents = allEvents.filter(event => {
+            if (!event.condition) return true;
+            
+            if (event.condition.type === 'decision_history') {
+                // Check if specific decision option was taken
+                // e.g. value="risk", detail="rival_coach" -> "risk_rival_coach"
+                const requiredDecision = `${event.condition.value}_${event.condition.detail}`;
+                return state.decisionHistory.includes(requiredDecision);
+            }
+            return true;
+        });
+
+        // Always trigger at least 1 random event each month.
+        // At quarter end, trigger 3 random events in sequence.
+        const randomEventCount = settlementEvent ? 3 : 1;
+        const sourcePool = validEvents.length > 0 ? validEvents : allEvents;
+        const pickedEvents = [];
+        let availablePool = sourcePool.filter(ev => ev && ev.id && !nextRandomEventsThisYear.includes(ev.id));
+        if (availablePool.length === 0) {
+            availablePool = sourcePool;
+        }
+
+        for (let i = 0; i < randomEventCount; i++) {
+            if (!availablePool || availablePool.length === 0) break;
+            const pickedIndex = Math.floor(Math.random() * availablePool.length);
+            const picked = availablePool[pickedIndex];
+            availablePool.splice(pickedIndex, 1);
+
+            const prepared = cloneAndReplaceEventText(picked, state);
+            if (prepared) {
+                pickedEvents.push(prepared);
+                if (prepared.id && !nextRandomEventsThisYear.includes(prepared.id)) {
+                    nextRandomEventsThisYear.push(prepared.id);
                 }
             }
-        } else {
+
+            if (availablePool.length === 0) break;
+        }
+
+        if (pickedEvents.length > 0) {
+            for (let i = 0; i < pickedEvents.length - 1; i++) {
+                const nextEv = pickedEvents[i + 1];
+                if (pickedEvents[i].options && pickedEvents[i].options.length > 0) {
+                    pickedEvents[i].options = pickedEvents[i].options.map(opt => {
+                        if (opt.nextEvent) return opt;
+                        return { ...opt, nextEvent: nextEv };
+                    });
+                } else {
+                    pickedEvents[i].nextEvent = nextEv;
+                }
+            }
+            eventToTrigger = pickedEvents[0];
+        }
+
+        // Quarterly expectation report takes priority, but chains into any other event
+        if (settlementEvent) {
+            if (eventToTrigger) {
+                settlementEvent = { ...settlementEvent, nextEvent: eventToTrigger };
+            }
             eventToTrigger = settlementEvent;
+        }
+
+        if (forcedEvent) {
+            if (eventToTrigger) {
+                queuedEvent = eventToTrigger;
+            }
+            eventToTrigger = forcedEvent;
         }
         
         // Check Game Over conditions again after monthly updates
         let nextGameStateAfterMonth = state.gameState;
+
+        enforceRainbowArmband(statsAfterMonth, nextActiveBuffs);
+
         if (statsAfterMonth.boardSupport <= 0 || statsAfterMonth.dressingRoom <= 0) {
             nextGameStateAfterMonth = 'gameover';
         } else if (victory) {
@@ -425,12 +545,15 @@ function gameReducer(state, action) {
             currentEvent: eventToTrigger,
             gameState: nextGameStateAfterMonth,
             tabloidCount: nextTabloidCount,
-            activeBuffs: nextActiveBuffs
+            activeBuffs: nextActiveBuffs,
+            pointsThisQuarter: pointsThisQuarterAfterMonth,
+            queuedEvent: queuedEvent,
+            randomEventsThisYear: nextRandomEventsThisYear
         };
         
     case 'RESOLVE_EVENT':
         // Apply event option effects
-        const eventEffects = action.payload.effects;
+        const eventEffects = action.payload.effects || {};
         const statsAfterEvent = { ...state.stats };
         
         // Handle Buffs from events
@@ -441,8 +564,31 @@ function gameReducer(state, action) {
             }
         }
 
+        let nextTabloidCountAfterEvent = state.tabloidCount;
+        let pointsThisQuarterAfterEvent = state.pointsThisQuarter;
+
+        if (eventEffects.points_bonus) {
+            statsAfterEvent.points += eventEffects.points_bonus;
+            pointsThisQuarterAfterEvent += eventEffects.points_bonus;
+        }
+
+        // Tabloid accumulation from events (random events can have these effects)
+        if (eventEffects.chance_tabloid) {
+            if (Math.random() < 0.5) {
+                nextTabloidCountAfterEvent += 1;
+            }
+        } else if (eventEffects.tabloid) {
+            nextTabloidCountAfterEvent += eventEffects.tabloid;
+        }
+
+        let scandalEventAfterResolve = null;
+        if (nextTabloidCountAfterEvent >= 3) {
+            nextTabloidCountAfterEvent = 0;
+            scandalEventAfterResolve = buildTabloidBreakingEvent();
+        }
+
         Object.keys(eventEffects).forEach(key => {
-             if (key === 'special_rainbow_armband') return;
+             if (key === 'special_rainbow_armband' || key === 'chance_tabloid' || key === 'tabloid' || key === 'points_bonus') return;
 
              if (statsAfterEvent[key] !== undefined) {
                 // Special check for mediaSupport: if 0, cannot decrease further
@@ -462,6 +608,8 @@ function gameReducer(state, action) {
                 }
              }
         });
+
+        enforceRainbowArmband(statsAfterEvent, eventActiveBuffs);
         
         // Check Game Over conditions after event resolution
         let gameStateAfterEvent = state.gameState;
@@ -469,12 +617,34 @@ function gameReducer(state, action) {
             gameStateAfterEvent = 'gameover';
         }
 
+        let nextCurrentEvent = null;
+        let nextQueuedEvent = state.queuedEvent;
+
+        // Determine what would come next (normal flow)
+        if (action.payload.nextEvent) {
+            nextCurrentEvent = action.payload.nextEvent;
+        } else if (state.queuedEvent) {
+            nextCurrentEvent = state.queuedEvent;
+            nextQueuedEvent = null;
+        }
+
+        // If tabloid scandal triggers, it takes priority but does not lose the next event
+        if (scandalEventAfterResolve) {
+            if (nextCurrentEvent) {
+                nextQueuedEvent = nextCurrentEvent;
+            }
+            nextCurrentEvent = scandalEventAfterResolve;
+        }
+
         return {
             ...state,
             stats: statsAfterEvent,
-            currentEvent: null,
+            currentEvent: nextCurrentEvent,
+            queuedEvent: nextQueuedEvent,
             gameState: gameStateAfterEvent,
-            activeBuffs: eventActiveBuffs
+            activeBuffs: eventActiveBuffs,
+            tabloidCount: nextTabloidCountAfterEvent,
+            pointsThisQuarter: pointsThisQuarterAfterEvent
         };
 
     default:

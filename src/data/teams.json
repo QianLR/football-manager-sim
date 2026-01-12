@@ -3,7 +3,7 @@
     "id": "man_utd",
     "name": "曼联",
     "difficulty": "Hell",
-    "description": "重建泥潭，名宿太吵，媒体环境恶劣。",
+    "description": "深陷重建泥潭的球队，名宿没有执教能力，但在媒体上十分活跃——并不对你有利。即使阵容残缺，管理层仍然期望前四名的水准，且不愿给你话语权。",
     "initialStats": {
       "boardSupport": 100,
       "dressingRoom": 100,
@@ -22,7 +22,7 @@
     "id": "real_madrid",
     "name": "皇家马德里",
     "difficulty": "Hard",
-    "description": "银河战舰，容错率为零，必须夺冠。",
+    "description": "拥有强大的媒体支持和最高的初始技战术水平，当然也包括丰厚的资金。然而你的话语权并不高，且管理层的期望仅有夺冠。",
     "initialStats": {
       "boardSupport": 100,
       "dressingRoom": 100,
@@ -41,7 +41,7 @@
     "id": "arsenal",
     "name": "阿森纳",
     "difficulty": "Easy",
-    "description": "青年近卫军，体系成熟，适合新手。",
+    "description": "球队的期望为前四名，资金中等，媒体环境中等。虽然你是一位新人教练，但也拥有极高的话语权。初始即可动用球队资金。",
     "initialStats": {
       "boardSupport": 100,
       "dressingRoom": 100,

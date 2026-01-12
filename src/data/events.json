@@ -48,7 +48,7 @@
         {
           "id": "foreign_coach",
           "text": "和其他联赛教练调情",
-          "effects": { "tabloid": 0.5, "tactics": 0.5, "chance_tabloid": 0.5 }
+          "effects": { "tactics": 0.5, "chance_tabloid": true }
         },
         {
           "id": "player",
