@@ -24,7 +24,7 @@
         {
           "id": "explode",
           "text": "和管理层爆了！",
-          "description": "Breaking：彻底爆了！！！{state.playerName}在发布会上直指[俱乐部]管理层与其上任以来的执教理念[执教理念]不符",
+          "description": "Breaking：彻底爆了！！！[名字]在发布会上直指[俱乐部]管理层与其上任以来的执教理念[执教理念]不符，管理层没有给出任何支持，并将水瓶掷到地上。\n更多消息，稍后带来。",
           "effects": { "mediaSupport": 100, "boardSupport": -99, "dressingRoom": -10, "set_board_support_to_1": true }
         }
       ]

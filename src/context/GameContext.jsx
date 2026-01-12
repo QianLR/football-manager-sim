@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer } from 'react';
+import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import teamsData from '../data/teams.json';
 import eventsData from '../data/events.json';
 
@@ -14,6 +14,7 @@ const initialState = {
   quarter: 1,
   year: 1,
   decisionPoints: 3,
+  estimatedRanking: 1,
   history: [],
   currentEvent: null,
   activeDecisionsTaken: [], // Track decision types taken this month
@@ -30,10 +31,78 @@ const initialState = {
   tabloidCount: 0,
   decisionCountThisMonth: 0, // Track number of decisions taken this month
   easterEggTriggered: false,
+  artetaEasterEggTriggered: false,
   pointsThisQuarter: 0,
   queuedEvent: null,
-  pendingGameState: null
+  pendingGameState: null,
+  pendingSave: null
 };
+
+const SAVE_VERSION = 1;
+const AUTO_SAVE_KEY = 'gsm_save_auto_latest';
+const MANUAL_SAVE_KEY_PREFIX = 'gsm_save_manual_';
+
+function buildSavePayload(state, type, slot) {
+  const meta = {
+    type,
+    slot: slot ?? null,
+    savedAt: new Date().toISOString(),
+    playerName: state.playerName || '',
+    teamId: state.currentTeam?.id || null,
+    teamName: state.currentTeam?.name || null,
+    year: state.year,
+    quarter: state.quarter,
+    month: state.month,
+    points: state.stats?.points,
+    boardSupport: state.stats?.boardSupport,
+    dressingRoom: state.stats?.dressingRoom,
+    mediaSupport: state.stats?.mediaSupport,
+    authority: state.stats?.authority,
+    funds: state.stats?.funds,
+    tactics: state.stats?.tactics,
+    tabloidCount: state.tabloidCount
+  };
+
+  const stateToSave = { ...state };
+  delete stateToSave.pendingSave;
+
+  return {
+    version: SAVE_VERSION,
+    meta,
+    state: stateToSave
+  };
+}
+
+function hydrateLoadedState(savedState) {
+  if (!savedState || typeof savedState !== 'object') return null;
+  return {
+    ...initialState,
+    ...savedState,
+    pendingSave: null
+  };
+}
+
+function estimateRankingFromPoints(points, monthsPlayed) {
+  const played = Math.max(0, monthsPlayed || 0);
+  if (played === 0) return 1;
+
+  // 3 quarters * 3 months = 9 months per season. Champion pace ~96 points.
+  const championPacePerMonth = 32 / 3;
+  const target = championPacePerMonth * played;
+  const diff = target - (points || 0);
+
+  let estimatedRanking = 1;
+  if (diff <= 0) estimatedRanking = 1;
+  else if (diff <= 3) estimatedRanking = 2;
+  else if (diff <= 6) estimatedRanking = 3;
+  else if (diff <= 9) estimatedRanking = 4;
+  else if (diff <= 12) estimatedRanking = 5;
+  else if (diff <= 15) estimatedRanking = 6;
+  else if (diff <= 18) estimatedRanking = 7;
+  else estimatedRanking = 8;
+
+  return Math.min(20, Math.max(1, estimatedRanking));
+}
 
 function enforceRainbowArmband(stats, activeBuffs) {
   if (!stats || stats.mediaSupport === undefined) return;
@@ -81,6 +150,28 @@ function buildTabloidBreakingEvent() {
         }
       }
     ]
+  };
+}
+
+function isArtetaName(name) {
+  const n = (name || '').trim().toLowerCase();
+  return n === '阿尔特塔' || n === '米克尔阿尔特塔' || n === 'arteta' || n === 'mikel arteta';
+}
+
+function shouldTriggerArtetaEasterEgg(state) {
+  if (!state || state.artetaEasterEggTriggered) return false;
+  if (!state.currentTeam || !state.playerName) return false;
+  if (state.currentTeam.id !== 'arsenal') return false;
+  return isArtetaName(state.playerName);
+}
+
+function buildArtetaExHusbandEvent({ firedBy }) {
+  const effects = firedBy === 'dressingRoom' ? { dressingRoom: 10 } : { boardSupport: 10 };
+  return {
+    id: 'arteta_ex_husband',
+    title: '你的前夫很关心你',
+    description: '下课风波？阿森纳名宿范佩西表示：你们应该给他时间\n近日，有关阿森纳俱乐部要解雇主帅的消息沸沸扬扬。阿森纳名宿（也是曼联的）范佩西表示，阿森纳不应该解雇阿尔特塔。他说：“你们应该相信他，给他更多时间。为什么？你问我为什么？因为我就是相信他能行的。”',
+    effects
   };
 }
 
@@ -153,7 +244,7 @@ function buildGerrardLetterEvent() {
     description: '亲爱的Xabi，\n我很抱歉听到你离开[俱乐部]的消息。虽然现在才给你发消息可能有些晚，但我想问……你愿意来利物浦执教吗？你知道的，这里的所有人都希望你来（包括我）。如果你愿意，我一定会说服他们立刻给你offer的！',
     options: [
       { text: 'You’ll never walk alone', effects: {}, switchTeamId: 'liverpool', grantBuff: 'istanbul_kiss' },
-      { text: '礼貌拒绝', effects: {}, setPendingGameState: 'gameover' }
+      { text: '礼貌拒绝（这才会重新开始）', effects: {}, setPendingGameState: 'gameover' }
     ]
   };
 }
@@ -197,6 +288,7 @@ function gameReducer(state, action) {
         playerName: action.payload.playerName,
         coachingPhilosophy: action.payload.coachingPhilosophy,
         stats: { ...team.initialStats },
+        estimatedRanking: 1,
         // Trigger welcome event immediately
         currentEvent: {
             id: 'welcome',
@@ -205,6 +297,51 @@ function gameReducer(state, action) {
             options: [{ text: '开始执教', effects: {} }]
         }
       };
+
+    case 'OPEN_GERRARD_LETTER':
+        return {
+            ...state,
+            gameState: 'playing',
+            currentEvent: buildGerrardLetterEvent(),
+            queuedEvent: null,
+            pendingGameState: 'gameover',
+            easterEggTriggered: true
+        };
+
+    case 'OPEN_ARTETA_EX_HUSBAND': {
+        const firedBy = state.stats?.dressingRoom <= 0 ? 'dressingRoom' : 'boardSupport';
+        return {
+            ...state,
+            gameState: 'playing',
+            currentEvent: buildArtetaExHusbandEvent({ firedBy }),
+            queuedEvent: null,
+            pendingGameState: null,
+            artetaEasterEggTriggered: true
+        };
+    }
+
+    case 'REQUEST_MANUAL_SAVE':
+        return {
+            ...state,
+            pendingSave: { type: 'manual', slot: action.payload?.slot }
+        };
+
+    case 'REQUEST_AUTO_SAVE':
+        return {
+            ...state,
+            pendingSave: { type: 'auto' }
+        };
+
+    case 'CLEAR_PENDING_SAVE':
+        return {
+            ...state,
+            pendingSave: null
+        };
+
+    case 'LOAD_GAME': {
+        const next = hydrateLoadedState(action.payload);
+        return next ? next : state;
+    }
 
     case 'UPDATE_STATS':
       const newStats = { ...state.stats };
@@ -240,18 +377,6 @@ function gameReducer(state, action) {
       // Check Game Over conditions
       let nextGameStateAfterUpdate = state.gameState;
       if (newStats.boardSupport <= 0 || newStats.dressingRoom <= 0) {
-        if (shouldTriggerAlonsoEasterEgg(state, newStats)) {
-          return {
-            ...state,
-            stats: newStats,
-            gameState: 'playing',
-            currentEvent: buildGerrardLetterEvent(),
-            queuedEvent: null,
-            pendingGameState: null,
-            easterEggTriggered: true,
-            activeBuffs: nextBuffsAfterUpdate
-          };
-        }
         nextGameStateAfterUpdate = 'gameover';
       }
 
@@ -263,7 +388,7 @@ function gameReducer(state, action) {
       };
 
     case 'TAKE_DECISION':
-        const { decisionId, type, effects, optionId } = action.payload;
+        const { decisionId, type, effects, optionId, optionDescription } = action.payload;
         
         // Check if decision limit reached (max 3 per month)
         if (state.decisionCountThisMonth >= 3) {
@@ -282,6 +407,21 @@ function gameReducer(state, action) {
 
         if (effects.funds < 0 && (state.stats.funds + effects.funds) < 0) {
             return state;
+        }
+
+        // Special mechanics: each season can open/close once
+        if (effects.special_canteen) {
+            const actionKey = effects.special_canteen;
+            if (state.specialMechanicState?.canteenChangedThisSeason?.[actionKey]) {
+                return state;
+            }
+        }
+
+        if (effects.special_roof) {
+            const actionKey = effects.special_roof;
+            if (state.specialMechanicState?.roofChangedThisSeason?.[actionKey]) {
+                return state;
+            }
         }
 
         // Apply effects
@@ -355,9 +495,17 @@ function gameReducer(state, action) {
         let newSpecialState = { ...state.specialMechanicState };
         if (effects.special_canteen) {
             newSpecialState.canteenOpen = effects.special_canteen === 'open';
+            newSpecialState.canteenChangedThisSeason = {
+                ...(newSpecialState.canteenChangedThisSeason || { open: false, close: false }),
+                [effects.special_canteen]: true
+            };
         }
         if (effects.special_roof) {
             newSpecialState.roofClosed = effects.special_roof === 'close';
+            newSpecialState.roofChangedThisSeason = {
+                ...(newSpecialState.roofChangedThisSeason || { open: false, close: false }),
+                [effects.special_roof]: true
+            };
         }
 
         // Check for tabloid scandal
@@ -375,6 +523,15 @@ function gameReducer(state, action) {
                 description: '你就是想亲曾经的队长，媒体们有什么可说的呢？',
                 effects: {}
             };
+        } else if (optionDescription) {
+            const decisionDef = (eventsData.activeDecisions || []).find(d => d.id === decisionId);
+            const decisionTitle = decisionDef?.title || '发布会';
+            flavorEvent = {
+                id: `decision_flavor_${decisionId}_${optionId || 'default'}`,
+                title: decisionTitle,
+                description: optionDescription,
+                effects: {}
+            };
         }
 
         enforceRainbowArmband(statsAfterDecision, newActiveBuffs);
@@ -389,27 +546,6 @@ function gameReducer(state, action) {
         // Record decision history for conditions (e.g. "flirt_rival")
         // We store "type_optionId" or just "type" if no option
         const decisionRecord = optionId ? `${type}_${optionId}` : type;
-
-        const gameOverNow = statsAfterDecision.boardSupport <= 0 || statsAfterDecision.dressingRoom <= 0;
-        if (gameOverNow && shouldTriggerAlonsoEasterEgg(state, statsAfterDecision)) {
-            return {
-                ...state,
-                stats: statsAfterDecision,
-                decisionPoints: state.decisionPoints - 1,
-                decisionCountThisMonth: state.decisionCountThisMonth + 1,
-                activeDecisionsTaken: [...state.activeDecisionsTaken, type],
-                decisionHistory: [...state.decisionHistory, decisionRecord],
-                tabloidCount: newTabloidCount,
-                specialMechanicState: newSpecialState,
-                activeBuffs: syncedBuffsAfterDecision,
-                pointsThisQuarter: pointsThisQuarterAfterDecision,
-                currentEvent: buildGerrardLetterEvent(),
-                queuedEvent: null,
-                pendingGameState: null,
-                easterEggTriggered: true,
-                gameState: 'playing'
-            };
-        }
 
         let nextCurrentEventAfterDecision = null;
         let nextQueuedEventAfterDecision = state.queuedEvent;
@@ -444,6 +580,7 @@ function gameReducer(state, action) {
         let nextYear = state.year;
         let eventToTrigger = null;
         let statsAfterMonth = { ...state.stats };
+        let nextSpecialState = { ...state.specialMechanicState };
         let settlementEvent = null;
         let victory = false;
         let nextTabloidCount = state.tabloidCount;
@@ -454,9 +591,11 @@ function gameReducer(state, action) {
         let nextRandomEventsThisYear = [...(state.randomEventsThisYear || [])];
         let nextLastRandomEventId = state.lastRandomEventId;
         let pendingGameState = null;
+        let shouldAutoSave = false;
+        let nextEstimatedRanking = state.estimatedRanking;
 
         // Monthly Canteen Check (Man Utd)
-        if (state.currentTeam.id === 'man_utd' && !state.specialMechanicState.canteenOpen) {
+        if (state.currentTeam.id === 'man_utd' && !nextSpecialState.canteenOpen) {
              // Delayed penalty for closed canteen
              statsAfterMonth.dressingRoom = Math.max(0, statsAfterMonth.dressingRoom - 10);
              if (!nextActiveBuffs.includes('closed_canteen')) nextActiveBuffs.push('closed_canteen');
@@ -515,29 +654,13 @@ function gameReducer(state, action) {
         if (nextMonth > 3) {
             nextMonth = 1;
             nextQuarter += 1;
+            shouldAutoSave = true;
             
             // --- Quarterly Settlement Logic ---
 
-            // 1. Calculate Ranking (Simplified Simulation)
-            // We need a way to determine ranking based on total points vs "virtual" league table.
-            // For v1.0, let's map points to a rough ranking.
-            // Max points per quarter = 36. Max total = 108.
-            // Let's assume champion pace is ~96 points for a 3-quarter season (i.e. ~32 points per quarter).
-            const championPaceScore = 32 * state.quarter;
-            const diff = championPaceScore - statsAfterMonth.points;
-            
-            let estimatedRanking = 1;
-            if (diff <= 0) estimatedRanking = 1;
-            else if (diff <= 3) estimatedRanking = 2;
-            else if (diff <= 6) estimatedRanking = 3;
-            else if (diff <= 9) estimatedRanking = 4;
-            else if (diff <= 12) estimatedRanking = 5;
-            else if (diff <= 15) estimatedRanking = 6;
-            else if (diff <= 18) estimatedRanking = 7;
-            else estimatedRanking = 8; // GDD says min 8 for giants
-            
-            // Clamp ranking
-            estimatedRanking = Math.min(20, Math.max(1, estimatedRanking));
+            // Ranking estimation for quarter end
+            const monthsPlayedAtQuarterEnd = state.quarter * 3;
+            let estimatedRanking = estimateRankingFromPoints(statsAfterMonth.points, monthsPlayedAtQuarterEnd);
             
             // 3. Check Expectations
             const expectation = state.currentTeam.expectations.ranking;
@@ -545,7 +668,7 @@ function gameReducer(state, action) {
             let mediaChange = 0;
 
             // Special Mechanic: Real Madrid Roof
-            if (state.currentTeam.id === 'real_madrid' && state.specialMechanicState.roofClosed) {
+            if (state.currentTeam.id === 'real_madrid' && nextSpecialState.roofClosed) {
                 if (estimatedRanking === 1) mediaChange += 20;
                 else mediaChange -= 20;
             }
@@ -583,12 +706,23 @@ function gameReducer(state, action) {
             nextQuarter = 1;
             nextYear += 1;
             // Season Finale Logic would go here
+
+            // Reset per-season toggles, but keep current on/off states.
+            nextSpecialState = {
+                ...nextSpecialState,
+                canteenChangedThisSeason: { open: false, close: false },
+                roofChangedThisSeason: { open: false, close: false }
+            };
         }
 
         if (nextYear !== state.year) {
             nextRandomEventsThisYear = [];
             nextLastRandomEventId = null;
         }
+
+        // Update ranking every month based on total points and months played
+        const monthsPlayed = (nextQuarter - 1) * 3 + (nextMonth - 1);
+        nextEstimatedRanking = estimateRankingFromPoints(statsAfterMonth.points, monthsPlayed);
 
         // Random Event Logic
         const globalEvents = eventsData.randomEvents.global;
@@ -702,29 +836,6 @@ function gameReducer(state, action) {
         enforceRainbowArmband(statsAfterMonth, nextActiveBuffs);
 
         if (statsAfterMonth.boardSupport <= 0 || statsAfterMonth.dressingRoom <= 0) {
-            if (shouldTriggerAlonsoEasterEgg(state, statsAfterMonth)) {
-                return {
-                    ...state,
-                    stats: statsAfterMonth,
-                    month: nextMonth,
-                    quarter: nextQuarter,
-                    year: nextYear,
-                    decisionPoints: 3,
-                    decisionCountThisMonth: 0,
-                    activeDecisionsTaken: [],
-                    currentEvent: buildGerrardLetterEvent(),
-                    queuedEvent: null,
-                    gameState: 'playing',
-                    tabloidCount: nextTabloidCount,
-                    activeBuffs: nextActiveBuffs,
-                    pointsThisQuarter: pointsThisQuarterAfterMonth,
-                    randomEventsThisYear: nextRandomEventsThisYear,
-                    lastRandomEventId: nextLastRandomEventId,
-                    pendingGameState: null,
-                    easterEggTriggered: true
-                };
-            }
-
             nextGameStateAfterMonth = 'gameover';
         }
 
@@ -742,10 +853,13 @@ function gameReducer(state, action) {
             tabloidCount: nextTabloidCount,
             activeBuffs: nextActiveBuffs,
             pointsThisQuarter: pointsThisQuarterAfterMonth,
+            estimatedRanking: nextEstimatedRanking,
+            specialMechanicState: nextSpecialState,
             queuedEvent: queuedEvent,
             randomEventsThisYear: nextRandomEventsThisYear,
             lastRandomEventId: nextLastRandomEventId,
-            pendingGameState: pendingGameState
+            pendingGameState: pendingGameState,
+            pendingSave: state.pendingSave ? state.pendingSave : (shouldAutoSave ? { type: 'auto' } : null)
         };
         
     case 'RESOLVE_EVENT':
@@ -840,20 +954,6 @@ function gameReducer(state, action) {
         // Check Game Over conditions after event resolution
         let gameStateAfterEvent = state.gameState;
         if (statsAfterEvent.boardSupport <= 0 || statsAfterEvent.dressingRoom <= 0) {
-            if (shouldTriggerAlonsoEasterEgg(state, statsAfterEvent)) {
-                return {
-                    ...state,
-                    stats: statsAfterEvent,
-                    currentEvent: buildGerrardLetterEvent(),
-                    queuedEvent: null,
-                    pendingGameState: null,
-                    easterEggTriggered: true,
-                    gameState: 'playing',
-                    activeBuffs: syncedBuffsAfterEvent,
-                    tabloidCount: nextTabloidCountAfterEvent,
-                    pointsThisQuarter: pointsThisQuarterAfterEvent
-                };
-            }
             gameStateAfterEvent = 'gameover';
         }
 
@@ -904,6 +1004,27 @@ function gameReducer(state, action) {
 
 export function GameProvider({ children }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
+
+  useEffect(() => {
+    if (!state.pendingSave) return;
+
+    try {
+      if (state.pendingSave.type === 'auto') {
+        const payload = buildSavePayload(state, 'auto');
+        localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(payload));
+      } else if (state.pendingSave.type === 'manual') {
+        const slot = state.pendingSave.slot;
+        if (slot === 1 || slot === 2 || slot === 3) {
+          const payload = buildSavePayload(state, 'manual', slot);
+          localStorage.setItem(`${MANUAL_SAVE_KEY_PREFIX}${slot}`, JSON.stringify(payload));
+        }
+      }
+    } catch (e) {
+      // ignore
+    } finally {
+      dispatch({ type: 'CLEAR_PENDING_SAVE' });
+    }
+  }, [state.pendingSave]);
 
   return (
     <GameContext.Provider value={{ state, dispatch }}>
