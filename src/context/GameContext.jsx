@@ -35,7 +35,8 @@ const initialState = {
   pointsThisQuarter: 0,
   queuedEvent: null,
   pendingGameState: null,
-  pendingSave: null
+  pendingSave: null,
+  pendingSeasonReset: false
 };
 
 const SAVE_VERSION = 1;
@@ -594,6 +595,7 @@ function gameReducer(state, action) {
         let pendingGameState = null;
         let shouldAutoSave = false;
         let nextEstimatedRanking = state.estimatedRanking;
+        let nextPendingSeasonReset = state.pendingSeasonReset;
 
         // Monthly Canteen Check (Man Utd)
         if (state.currentTeam.id === 'man_utd' && !nextSpecialState.canteenOpen) {
@@ -707,6 +709,10 @@ function gameReducer(state, action) {
             nextQuarter = 1;
             nextYear += 1;
             // Season Finale Logic would go here
+
+            // Mark season reset to be applied after confirming season settlement event
+            nextPendingSeasonReset = true;
+            pointsThisQuarterAfterMonth = 0;
 
             // Reset per-season toggles, but keep current on/off states.
             nextSpecialState = {
@@ -861,7 +867,8 @@ function gameReducer(state, action) {
             randomEventsThisYear: nextRandomEventsThisYear,
             lastRandomEventId: nextLastRandomEventId,
             pendingGameState: pendingGameState,
-            pendingSave: state.pendingSave ? state.pendingSave : (shouldAutoSave ? { type: 'auto' } : null)
+            pendingSave: state.pendingSave ? state.pendingSave : (shouldAutoSave ? { type: 'auto' } : null),
+            pendingSeasonReset: nextPendingSeasonReset
         };
         
     case 'RESOLVE_EVENT':
@@ -886,6 +893,8 @@ function gameReducer(state, action) {
                 }
             };
         }
+
+        const isResolvingSeasonSettlement = state.pendingSeasonReset && state.currentEvent && state.currentEvent.id === 'season_settlement';
 
         // Apply event option effects
         const eventEffects = action.payload.effects || {};
@@ -952,10 +961,30 @@ function gameReducer(state, action) {
           teamId: state.currentTeam?.id,
           specialMechanicState: state.specialMechanicState
         });
+
+        let finalStatsAfterEvent = statsAfterEvent;
+        let finalEstimatedRanking = state.estimatedRanking;
+        let finalPendingSeasonReset = state.pendingSeasonReset;
+        let finalBuffsAfterEvent = syncedBuffsAfterEvent;
+
+        if (isResolvingSeasonSettlement) {
+          finalStatsAfterEvent = { ...statsAfterEvent };
+          finalStatsAfterEvent.points = 0;
+          finalStatsAfterEvent.tactics = Math.max(0, Math.min(10, (finalStatsAfterEvent.tactics ?? 0) - 2));
+          finalStatsAfterEvent.funds = Math.max(0, (finalStatsAfterEvent.funds ?? 0) + 10);
+          finalEstimatedRanking = 1;
+          finalPendingSeasonReset = false;
+          finalBuffsAfterEvent = syncDerivedBuffs({
+            activeBuffs: eventActiveBuffs,
+            stats: finalStatsAfterEvent,
+            teamId: state.currentTeam?.id,
+            specialMechanicState: state.specialMechanicState
+          });
+        }
         
         // Check Game Over conditions after event resolution
         let gameStateAfterEvent = state.gameState;
-        if (statsAfterEvent.boardSupport <= 0 || statsAfterEvent.dressingRoom <= 0) {
+        if (finalStatsAfterEvent.boardSupport <= 0 || finalStatsAfterEvent.dressingRoom <= 0) {
             gameStateAfterEvent = 'gameover';
         }
 
@@ -989,14 +1018,16 @@ function gameReducer(state, action) {
 
         return {
             ...state,
-            stats: statsAfterEvent,
+            stats: finalStatsAfterEvent,
             currentEvent: nextCurrentEvent,
             queuedEvent: nextQueuedEvent,
             gameState: gameStateAfterEvent,
-            activeBuffs: syncedBuffsAfterEvent,
+            activeBuffs: finalBuffsAfterEvent,
             tabloidCount: nextTabloidCountAfterEvent,
             pointsThisQuarter: pointsThisQuarterAfterEvent,
-            pendingGameState: nextPendingGameState
+            pendingGameState: nextPendingGameState,
+            estimatedRanking: finalEstimatedRanking,
+            pendingSeasonReset: finalPendingSeasonReset
         };
 
     default:
