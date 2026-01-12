@@ -583,6 +583,7 @@ function gameReducer(state, action) {
         let nextSpecialState = { ...state.specialMechanicState };
         let settlementEvent = null;
         let victory = false;
+        let quarterEstimatedRanking = null;
         let nextTabloidCount = state.tabloidCount;
         let nextActiveBuffs = [...state.activeBuffs];
         let pointsThisQuarterAfterMonth = state.pointsThisQuarter;
@@ -660,16 +661,16 @@ function gameReducer(state, action) {
 
             // Ranking estimation for quarter end
             const monthsPlayedAtQuarterEnd = state.quarter * 3;
-            let estimatedRanking = estimateRankingFromPoints(statsAfterMonth.points, monthsPlayedAtQuarterEnd);
+            quarterEstimatedRanking = estimateRankingFromPoints(statsAfterMonth.points, monthsPlayedAtQuarterEnd);
             
             // 3. Check Expectations
             const expectation = state.currentTeam.expectations.ranking;
-            const metExpectation = estimatedRanking <= expectation;
+            const metExpectation = quarterEstimatedRanking <= expectation;
             let mediaChange = 0;
 
             // Special Mechanic: Real Madrid Roof
             if (state.currentTeam.id === 'real_madrid' && nextSpecialState.roofClosed) {
-                if (estimatedRanking === 1) mediaChange += 20;
+                if (quarterEstimatedRanking === 1) mediaChange += 20;
                 else mediaChange -= 20;
             }
             
@@ -685,7 +686,7 @@ function gameReducer(state, action) {
 
             settlementEvent = buildQuarterExpectationEvent({
                 quarter: state.quarter,
-                ranking: estimatedRanking,
+                ranking: quarterEstimatedRanking,
                 points: statsAfterMonth.points,
                 metExpectation,
                 authority: statsAfterMonth.authority
@@ -693,7 +694,7 @@ function gameReducer(state, action) {
             
             // Check for Victory (End of Season)
             if (state.quarter === 3) { // Assuming 3 quarters per season
-                if (estimatedRanking === 1) {
+                if (quarterEstimatedRanking === 1) {
                     victory = true;
                 }
             }
@@ -803,9 +804,10 @@ function gameReducer(state, action) {
         if (settlementEvent) {
             // At season end, show season settlement (and optionally end the game after confirming)
             if (state.quarter === 3) {
+                const seasonEndRanking = quarterEstimatedRanking ?? nextEstimatedRanking;
                 const seasonSettlementEvent = buildSeasonSettlementEvent({
                     seasonYear: state.year,
-                    ranking: estimatedRanking,
+                    ranking: seasonEndRanking,
                     points: statsAfterMonth.points,
                     champion: victory
                 });

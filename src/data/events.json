@@ -184,7 +184,7 @@
         "options": [
           { "text": "无视", "effects": { "tabloid": 1, "boardSupport": -5 } },
           { "text": "把小报记者抓来喝咖啡", "effects": { "mediaSupport": -15, "boardSupport": 5, "tabloid": -1 } },
-          { "text": "召开发布会：“我${state.playerName}今天就把话撂在这了，我绝对没有和任何人谈恋爱！”", "effects": { "boardSupport": 10, "dressingRoom": -15, "mediaSupport": -5 } }
+          { "text": "召开发布会：“我[教练名字]今天就把话撂在这了，我绝对没有和任何人谈恋爱！”", "effects": { "boardSupport": 10, "dressingRoom": -15, "mediaSupport": -5 } }
         ]
       },
       {
