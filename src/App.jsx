@@ -299,12 +299,13 @@ function App() {
   
   if (state.gameState === 'victory') {
       if (showOnboarding) setShowOnboarding(false);
+      const winningSeasonYear = Math.max(1, (state.year || 1) - 1);
       return (
         <div className="min-h-screen bg-yellow-500 flex items-center justify-center p-3 text-black font-mono">
           <div className="text-center max-w-xl border-4 border-black p-4 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
             <h1 className="text-4xl font-bold mb-3 uppercase tracking-tighter">冠军！</h1>
             <p className="text-sm mb-4 whitespace-pre-wrap leading-relaxed">
-                恭喜你带领{state.currentTeam.name}夺得冠军！作为豪门主教练，能在第{state.year}个赛季就拿到冠军是一件非常不容易的事！本游戏目前还在1.0版本，未来将会开放更多优化，包括如何管理杯赛和联赛的分配，如何与更多人调情（大雾）。如果你在游戏的过程中遇到bug，欢迎向作者邮箱Rowaninc@163.com反馈！感谢你的游玩，我们2.0版本再见👋🏻
+                恭喜你带领{state.currentTeam.name}夺得冠军！作为豪门主教练，能在第{winningSeasonYear}个赛季就拿到冠军是一件非常不容易的事！本游戏目前还在1.0版本，未来将会开放更多优化，包括如何管理杯赛和联赛的分配，如何与更多人调情（大雾）。如果你在游戏的过程中遇到bug，欢迎向作者邮箱Rowaninc@163.com反馈！感谢你的游玩，我们2.0版本再见👋🏻
             </p>
             <button
               onClick={() => window.location.reload()}

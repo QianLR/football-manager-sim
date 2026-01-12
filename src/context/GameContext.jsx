@@ -105,6 +105,11 @@ function estimateRankingFromPoints(points, monthsPlayed) {
   return Math.min(20, Math.max(1, estimatedRanking));
 }
 
+function monthsPlayedFromState(state) {
+  if (!state) return 0;
+  return (state.quarter - 1) * 3 + (state.month - 1);
+}
+
 function enforceRainbowArmband(stats, activeBuffs) {
   if (!stats || stats.mediaSupport === undefined) return;
   if (!activeBuffs || !activeBuffs.includes('rainbow_armband')) return;
@@ -381,11 +386,18 @@ function gameReducer(state, action) {
         nextGameStateAfterUpdate = 'gameover';
       }
 
+      let nextEstimatedRankingAfterUpdate = state.estimatedRanking;
+      if (!state.pendingSeasonReset && newStats.points !== state.stats.points) {
+        const played = monthsPlayedFromState(state);
+        nextEstimatedRankingAfterUpdate = estimateRankingFromPoints(newStats.points, played);
+      }
+
       return {
         ...state,
         stats: newStats,
         gameState: nextGameStateAfterUpdate,
-        activeBuffs: nextBuffsAfterUpdate
+        activeBuffs: nextBuffsAfterUpdate,
+        estimatedRanking: nextEstimatedRankingAfterUpdate
       };
 
     case 'TAKE_DECISION':
@@ -727,9 +739,14 @@ function gameReducer(state, action) {
             nextLastRandomEventId = null;
         }
 
-        // Update ranking every month based on total points and months played
-        const monthsPlayed = (nextQuarter - 1) * 3 + (nextMonth - 1);
-        nextEstimatedRanking = estimateRankingFromPoints(statsAfterMonth.points, monthsPlayed);
+        // Update ranking every month based on total points and months played.
+        // At season rollover, keep last season's final ranking until the season settlement is confirmed.
+        if (nextPendingSeasonReset && quarterEstimatedRanking !== null) {
+            nextEstimatedRanking = quarterEstimatedRanking;
+        } else {
+            const monthsPlayed = (nextQuarter - 1) * 3 + (nextMonth - 1);
+            nextEstimatedRanking = estimateRankingFromPoints(statsAfterMonth.points, monthsPlayed);
+        }
 
         // Random Event Logic
         const globalEvents = eventsData.randomEvents.global;
@@ -980,6 +997,11 @@ function gameReducer(state, action) {
             teamId: state.currentTeam?.id,
             specialMechanicState: state.specialMechanicState
           });
+        }
+
+        if (!finalPendingSeasonReset && !isResolvingSeasonSettlement && finalStatsAfterEvent.points !== state.stats.points) {
+          const played = monthsPlayedFromState(state);
+          finalEstimatedRanking = estimateRankingFromPoints(finalStatsAfterEvent.points, played);
         }
         
         // Check Game Over conditions after event resolution
