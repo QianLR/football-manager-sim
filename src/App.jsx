@@ -228,6 +228,8 @@ function App() {
   if (state.gameState === 'gameover') {
     if (showOnboarding) setShowOnboarding(false);
 
+    const seasonMonth = (state.quarter - 1) * 3 + state.month;
+
     const isAlonsoName = (name) => {
       const n = (name || '').trim().toLowerCase();
       return n === '阿隆索' || n === '哈维阿隆索' || n === 'xabi alonso' || n === 'alonso';
@@ -258,9 +260,9 @@ function App() {
             reasonText = '你的管理层支持降到了冰点，你的下课事宜已经被敲定。';
         }
     } else if (state.stats.dressingRoom <= 0) {
-        reasonText = `在第${state.year}个赛季的第${state.month}个月，${state.currentTeam.name}遗憾地宣布：${state.playerName}教练已下课。感谢${state.playerName}的一切付出。\n更多消息，稍后带来。`;
+        reasonText = `在第${state.year}个赛季的第${seasonMonth}个月，${state.currentTeam.name}遗憾地宣布：${state.playerName}教练已下课。感谢${state.playerName}的一切付出。\n更多消息，稍后带来。`;
     } else if (state.stats.boardSupport <= 0) {
-        reasonText = `在第${state.year}个赛季的第${state.month}个月，${state.currentTeam.name}宣布：${state.playerName}已被解雇。\n更多消息，稍后带来。`;
+        reasonText = `在第${state.year}个赛季的第${seasonMonth}个月，${state.currentTeam.name}宣布：${state.playerName}已被解雇。\n更多消息，稍后带来。`;
     } else {
         reasonText = "你的执教生涯到此结束。";
     }
