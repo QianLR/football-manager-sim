@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@layer base {
+  @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+  body {
+    font-family: 'VT323', monospace;
+    background-color: #e0e0e0;
+    color: #000;
+  }
+}
+
+@layer components {
+  .retro-box {
+    @apply bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)];
+  }
+  
+  .retro-btn {
+    @apply border-2 border-black bg-white px-4 py-2 text-black font-bold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all hover:bg-gray-100;
+  }
+
+  .retro-btn-primary {
+    @apply border-2 border-black bg-blue-600 text-white px-4 py-2 font-bold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all hover:bg-blue-700;
+  }
+
+  .retro-progress-container {
+    @apply w-full bg-white border-2 border-black h-4 p-0.5;
+  }
+
+  .retro-progress-bar {
+    @apply h-full bg-blue-600 transition-all duration-300;
+  }
+}

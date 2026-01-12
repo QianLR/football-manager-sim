@@ -1,0 +1,273 @@
+{
+  "activeDecisions": [
+    {
+      "id": "press_conference",
+      "title": "召开一场发布会",
+      "type": "media",
+      "options": [
+        {
+          "id": "diplomatic",
+          "text": "谨慎斡旋",
+          "description": "是的，还有很多其他事情需要在俱乐部中完成，尤其是在我们目前的情况下。让我们看看哪些球员可以上场以及是否有伤员能赶上这场比赛。我们会继续努力的。非常感谢大家营造的氛围，感谢你们一直支持球队。我们现在的形势非常好，必须继续前进，我们需要大家的支持。",
+          "effects": { "dressingRoom": 5, "mediaSupport": -5, "boardSupport": 2 }
+        },
+        {
+          "id": "rant",
+          "text": "对媒体破口大骂",
+          "effects": { "dressingRoom": 15, "boardSupport": -5, "mediaSupport": -15 }
+        },
+        {
+          "id": "flatter",
+          "text": "对媒体甜言蜜语",
+          "effects": { "mediaSupport": 10, "boardSupport": -10 }
+        },
+        {
+          "id": "explode",
+          "text": "和管理层爆了！",
+          "description": "Breaking：彻底爆了！！！{state.playerName}在发布会上直指[俱乐部]管理层与其上任以来的执教理念[执教理念]不符",
+          "effects": { "mediaSupport": 100, "boardSupport": -99, "dressingRoom": -10, "set_board_support_to_1": true }
+        }
+      ]
+    },
+    {
+      "id": "find_mole",
+      "title": "在更衣室抓内鬼",
+      "type": "dressing_room",
+      "effects": { "dressingRoom": -10, "boardSupport": 2, "authority": 5, "mediaSupport": -2 }
+    },
+    {
+      "id": "flirtation",
+      "title": "调情",
+      "type": "risk",
+      "options": [
+        {
+          "id": "rival_coach",
+          "text": "和同联赛教练调情",
+          "effects": { "tabloid": 1, "tactics": 1 }
+        },
+        {
+          "id": "foreign_coach",
+          "text": "和其他联赛教练调情",
+          "effects": { "tabloid": 0.5, "tactics": 0.5, "chance_tabloid": 0.5 }
+        },
+        {
+          "id": "player",
+          "text": "和球员调情",
+          "effects": { "tabloid": 1, "dressingRoom": 10 }
+        }
+      ]
+    },
+    {
+      "id": "training",
+      "title": "训练",
+      "type": "training",
+      "options": [
+        {
+          "id": "strict",
+          "text": "要求球员在早上七点之前到场，严肃管理夜生活",
+          "effects": { "dressingRoom": -5, "authority": 5, "boardSupport": 2 }
+        },
+        {
+          "id": "relaxed",
+          "text": "放宽训练时间，并在更衣室里放美味披萨",
+          "effects": { "tactics": -0.5, "dressingRoom": 10, "boardSupport": -2 }
+        }
+      ]
+    },
+    {
+      "id": "coffee_ref",
+      "title": "与Var裁判喝咖啡",
+      "type": "corruption",
+      "effects": { "points_bonus": 3, "funds": -5, "tabloid": 1 }
+    },
+    {
+      "id": "demand_transfers",
+      "title": "要求引援",
+      "type": "transfer",
+      "condition": { "authority": 70 },
+      "effects": { "funds": -25, "tactics": 1, "boardSupport": 5 }
+    },
+    {
+      "id": "documentary",
+      "title": "邀请记者进入更衣室拍纪录片",
+      "type": "media_stunt",
+      "effects": { "authority": -10, "mediaSupport": 10, "dressingRoom": 5 }
+    },
+    {
+      "id": "coffee_journalist",
+      "title": "和记者喝咖啡",
+      "type": "media_relations",
+      "effects": { "tabloid": -1, "funds": -5 }
+    },
+    {
+      "id": "toggle_canteen",
+      "title": "关闭/打开食堂",
+      "type": "special_man_utd",
+      "teamId": "man_utd",
+      "description": "当前状态: {status}",
+      "options": [
+        { "id": "close", "text": "关闭食堂", "effects": { "tactics": 2, "dressingRoom": -20, "boardSupport": 5, "mediaSupport": -20, "special_canteen": "close" } },
+        { "id": "open", "text": "打开食堂", "effects": { "special_canteen": "open" } }
+      ]
+    },
+    {
+      "id": "toggle_roof",
+      "title": "关闭/打开伯纳乌顶棚",
+      "type": "special_real_madrid",
+      "teamId": "real_madrid",
+      "description": "当前状态: {status}",
+      "options": [
+        { "id": "close", "text": "关闭顶棚", "effects": { "special_roof": "close" } },
+        { "id": "open", "text": "打开顶棚", "effects": { "special_roof": "open" } }
+      ]
+    }
+  ],
+  "randomEvents": {
+    "global": [
+      {
+        "id": "striker_gk_romance",
+        "title": "前锋与门将恋爱",
+        "description": "你发现队里的前锋与门将开始谈起了恋爱，这使得前锋在球门前感到非常犹豫，因为他总会想到自己的恋人在面对破门时的无助。因此，他已经连续三场错失了绝佳机会。你的决定是：",
+        "options": [
+          { "text": "无视", "effects": { "tactics": -0.5 } },
+          { "text": "祝福他们", "effects": { "dressingRoom": 10, "tactics": -1 } },
+          { "text": "棒打鸳鸯", "effects": { "dressingRoom": -10, "authority": 5 } }
+        ]
+      },
+      {
+        "id": "cam_st_romance",
+        "title": "进攻型中场和中锋恋爱",
+        "description": "你发现队里的进攻型中场和中锋开始谈起了恋爱，这使得他们的传接变得更有默契，收获多个进球，但也引来了其他球员的不满。他们一致认为，这两位队友从不把球传给别人，是球霸行为。你的决定是：",
+        "options": [
+          { "text": "无视", "effects": { "dressingRoom": -5, "tactics": 0.5 } },
+          { "text": "能进球你们做什么都行！祝福他们", "effects": { "dressingRoom": -10, "tactics": 0.5, "mediaSupport": 5 } },
+          { "text": "年轻的中场不能遇见太惊艳的中锋！拆散他们", "effects": { "dressingRoom": 5, "tactics": -0.5 } }
+        ]
+      },
+      {
+        "id": "cb_cb_romance",
+        "title": "中卫搭档恋爱",
+        "description": "你发现队里的两个中卫搭档谈起了恋爱，他们的配合一直很有默契，感情也十分低调。但小报记者似乎已经注意到了这段恋情的端倪。如果记者抓住了证据，他们可能会在媒体上被严肃批评，管理层也可能会质疑你的球队治理能力。你的决定是：",
+        "options": [
+          { "text": "无视", "effects": { "tabloid": 1, "dressingRoom": -5 } },
+          { "text": "祝福他们，与他们坚定地站在一起", "effects": { "tabloid": 2, "dressingRoom": 15, "boardSupport": -5 } },
+          { "text": "为了球队，你们忍一忍吧！拆散他们", "effects": { "dressingRoom": -15, "boardSupport": 5 } }
+        ]
+      },
+      {
+        "id": "rival_coach_affair",
+        "title": "与死敌主教练的恋情谣言",
+        "description": "你发现小报正在编撰你和死敌球队主教练的恋情谣言。这让你大惊失色，因为你们真的有过一段关系！你当然可以选择无视，但越来越多的人开始相信这则新闻，有的球迷甚至怀疑你是球队内鬼。你的决定是：",
+        "condition": { "type": "decision_history", "value": "risk", "detail": "rival_coach" },
+        "options": [
+          { "text": "无视", "effects": { "tabloid": 1, "boardSupport": -5 } },
+          { "text": "把小报记者抓来喝咖啡", "effects": { "mediaSupport": -15, "boardSupport": 5, "tabloid": -1 } },
+          { "text": "召开发布会：“对，我们就是谈过，怎么了？”", "effects": { "mediaSupport": 10, "boardSupport": -15, "special_rainbow_armband": true } }
+        ]
+      },
+      {
+        "id": "secret_child",
+        "title": "私生子传闻",
+        "description": "你发现小报正在编撰你和某个遥远联赛主教练的谣言，称你们有一个孩子。这让你大惊失色，因为你们真的有一个孩子！你当然可以选择无视，但越来越多的人开始相信这则新闻，不少球迷要求你把孩子带到球队青训。你的决定是：",
+        "condition": { "type": "decision_history", "value": "risk", "detail": "foreign_coach" },
+        "options": [
+          { "text": "无视", "effects": { "tabloid": 1, "mediaSupport": -5 } },
+          { "text": "把小报记者抓来喝咖啡", "effects": { "mediaSupport": -15, "boardSupport": 5, "tabloid": -1 } },
+          { "text": "召开发布会：“是的，我们有一个孩子。”", "effects": { "mediaSupport": 10, "boardSupport": -10, "dressingRoom": -5 } }
+        ]
+      },
+      {
+        "id": "player_affair",
+        "title": "办公室恋情",
+        "description": "你发现小报正在编撰你和某个队内核心球员的谣言，称你们正在搞办公室恋情。这让你大惊失色，因为你们真的在干这种事！你当然可以选择无视，但越来越多的人开始相信这则新闻，不少球迷要求彻查你的问题。你的决定是：",
+        "condition": { "type": "decision_history", "value": "risk", "detail": "player" },
+        "options": [
+          { "text": "无视", "effects": { "tabloid": 1, "boardSupport": -5 } },
+          { "text": "把小报记者抓来喝咖啡", "effects": { "mediaSupport": -15, "boardSupport": 5, "tabloid": -1 } },
+          { "text": "召开发布会：“我${state.playerName}今天就把话撂在这了，我绝对没有和任何人谈恋爱！”", "effects": { "boardSupport": 10, "dressingRoom": -15, "mediaSupport": -5 } }
+        ]
+      },
+      {
+        "id": "captain_breakup",
+        "title": "队长分手风波",
+        "description": "某次训练中，你发现队长和副队长面色不虞。几次盘问后，你才得知他们之前谈过隐秘的地下恋，现在分手了，而分手的原因竟是因为队长和死敌球队的队长暧昧！面对着沉默不语的二人，你的决定是…",
+        "options": [
+          { "text": "加入这场沉默", "effects": { "authority": -5 } },
+          { "text": "大发雷霆，训斥队长通敌，要求立刻分手", "effects": { "authority": 5, "dressingRoom": -10 } },
+          { "text": "当面与副队长调情，让队长目瞪口呆", "effects": { "dressingRoom": 5, "tabloid": 1 } }
+        ]
+      },
+      {
+        "id": "shipping_rumors",
+        "title": "嗑CP风波",
+        "description": "你发现队员们聚在一起窃窃私语，于是你抓住其中一个，试图查明真相。三番五次逼问后，你得知队员原来是在嗑你和前任的cp，但你们已经分手很久了。你的决定是：",
+        "options": [
+          { "text": "警告他们不许嗑", "effects": { "dressingRoom": -10, "authority": 5 } },
+          { "text": "向他们痛斥你的前任有多负心，并沉痛地告诉他们不许再嗑了", "effects": { "tabloid": 1, "dressingRoom": 5 } },
+          { "text": "微微一笑：“其实我们已经复婚了。”", "effects": { "tabloid": 2, "dressingRoom": 10 } }
+        ]
+      },
+      {
+        "id": "el_clasico",
+        "title": "国家德比观赛",
+        "description": "一场国家德比即将打响。这会是一场绝佳的技战术水平比拼——应该会是。你想去看看，但又害怕去看之后会被转播镜头拍到：一定会有许多球迷责怪你不务正业！你的选择是：",
+        "options": [
+          { "text": "去看", "effects": { "tactics": 0.5, "mediaSupport": -10 } }, 
+          { "text": "不去看", "effects": {} }
+        ]
+      },
+      {
+        "id": "fifa_virus_def",
+        "title": "FIFA病毒 - 后卫受伤",
+        "description": "FIFA病毒正在肆虐。国际比赛日后，你惊悉队内有两位后卫受伤，这让原本就单薄的后卫线更加四处漏风。",
+        "effects": { "tactics": -1 }
+      },
+      {
+        "id": "fifa_virus_mid",
+        "title": "FIFA病毒 - 中场受伤",
+        "description": "FIFA病毒正在肆虐。国际比赛日后，你惊悉队内有两位中场受伤，这让原本就工兵的中场更加出不了球了。",
+        "effects": { "tactics": -1 }
+      },
+      {
+        "id": "fifa_virus_fwd",
+        "title": "FIFA病毒 - 前锋受伤",
+        "description": "FIFA病毒正在肆虐。国际比赛日后，你惊悉队内有两位前锋受伤，这让原本就拙劣的锋线更加三过球门而不入。",
+        "effects": { "tactics": -1 }
+      },
+      {
+        "id": "fifa_virus_gk",
+        "title": "FIFA病毒 - 门将荒",
+        "description": "FIFA病毒正在肆虐。国际比赛日后，你惊悉队内的一门受伤了，于是你把二门提起来，结果二门对比赛强度不够适应，二门也伤了。三门碰巧在外租借。于是你面对空空如也的门将位陷入了沉思。",
+        "effects": { "tactics": -1 }
+      },
+      {
+        "id": "boardroom_fight_physical",
+        "title": "管理层内斗 - 物理攻击",
+        "description": "管理层爆发了内斗，体育总监和CEO在办公室内大打出手，CEO用拖把给总监洗头，总监将CEO种的发财树一脚踹飞。发布会上你被记者多次盘问，只好一问三不知。",
+        "effects": { "boardSupport": -10, "mediaSupport": -5 }
+      },
+      {
+        "id": "boardroom_fight_lost_book",
+        "title": "管理层内斗 - 账本丢失",
+        "description": "管理层爆发了内斗，财务总监和体育总监在办公室内大打出手，并要求你站队。一无所知的你选择了中立，等待他们打完再出手。第二天你发现账本不翼而飞。",
+        "effects": { "boardSupport": -10, "funds": -5 }
+      },
+      {
+        "id": "legend_attack",
+        "title": "名宿攻击",
+        "description": "你得知那位做教练时把球队带降级的名宿正在采访中对你的战术进行攻击，称你是平庸无能的教练。囿于此人曾是俱乐部名宿，你无法严厉反驳，只能听此人胡说八道。",
+        "effects": { "mediaSupport": -10, "boardSupport": -5 }
+      },
+      {
+        "id": "wrong_seeds",
+        "title": "草种事件",
+        "description": "训练基地撒草种时撒错了种子，种出来一地大葱，死敌球队买通了媒体，对你们的大葱地争相报道。",
+        "effects": { "mediaSupport": -10 }
+      }
+    ],
+    "teamSpecific": {
+      "man_utd": [],
+      "arsenal": []
+    }
+  }
+}

@@ -1,0 +1,59 @@
+[
+  {
+    "id": "man_utd",
+    "name": "曼联",
+    "difficulty": "Hell",
+    "description": "重建泥潭，名宿太吵，媒体环境恶劣。",
+    "initialStats": {
+      "boardSupport": 100,
+      "dressingRoom": 100,
+      "mediaSupport": 30,
+      "authority": 20,
+      "funds": 100,
+      "tactics": 5,
+      "points": 0
+    },
+    "expectations": {
+      "ranking": 4
+    },
+    "specialMechanic": "canteen_policy"
+  },
+  {
+    "id": "real_madrid",
+    "name": "皇家马德里",
+    "difficulty": "Hard",
+    "description": "银河战舰，容错率为零，必须夺冠。",
+    "initialStats": {
+      "boardSupport": 100,
+      "dressingRoom": 100,
+      "mediaSupport": 80,
+      "authority": 30,
+      "funds": 80,
+      "tactics": 7,
+      "points": 0
+    },
+    "expectations": {
+      "ranking": 1
+    },
+    "specialMechanic": "bernabeu_roof"
+  },
+  {
+    "id": "arsenal",
+    "name": "阿森纳",
+    "difficulty": "Easy",
+    "description": "青年近卫军，体系成熟，适合新手。",
+    "initialStats": {
+      "boardSupport": 100,
+      "dressingRoom": 100,
+      "mediaSupport": 50,
+      "authority": 70,
+      "funds": 50,
+      "tactics": 6,
+      "points": 0
+    },
+    "expectations": {
+      "ranking": 4
+    },
+    "specialMechanic": "christmas_slump"
+  }
+]
