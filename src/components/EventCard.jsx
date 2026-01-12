@@ -4,7 +4,10 @@ import eventsData from '../data/events.json';
 
 const EventCard = () => {
   const { state, dispatch } = useGame();
-  const { currentEvent, activeDecisionsTaken, decisionPoints, currentTeam, specialMechanicState } = state;
+  const { currentEvent, activeDecisionsTaken, decisionCountThisMonth, currentTeam, specialMechanicState } = state;
+  
+  // Calculate remaining points dynamically
+  const remainingPoints = 3 - (decisionCountThisMonth || 0);
 
   // Helper to format effects for display
   const formatEffects = (effects) => {
@@ -67,11 +70,11 @@ const EventCard = () => {
     };
 
     return (
-      <div className="retro-box p-6">
-        <h3 className="text-2xl font-bold mb-6 font-mono uppercase border-b-2 border-black pb-2">
+      <div className="retro-box p-4">
+        <h3 className="text-lg font-bold mb-3 font-mono uppercase border-b-2 border-black pb-1">
             本月决策 (剩余: {decisionPoints})
         </h3>
-        <div className="grid grid-cols-1 gap-6">
+        <div className="grid grid-cols-1 gap-3">
           {availableDecisions.map(decision => {
              const isTaken = activeDecisionsTaken.includes(decision.type);
              if (isTaken) return null; // Hide taken decisions
@@ -99,19 +102,19 @@ const EventCard = () => {
              }
 
              return (
-                <div key={decision.id} className="border-2 border-black p-4 bg-gray-50">
-                    <h4 className="font-bold text-xl mb-2">{decision.title}</h4>
-                    {description && <p className="text-lg mb-4 font-mono leading-tight">{description}</p>}
+                <div key={decision.id} className="border-2 border-black p-3 bg-gray-50">
+                    <h4 className="font-bold text-base mb-1">{decision.title}</h4>
+                    {description && <p className="text-sm mb-2 font-mono leading-tight">{description}</p>}
                     
                     {/* Show effects for single-option decisions */}
                     {!decision.options && decision.effects && (
-                        <p className="text-sm text-gray-600 mb-4 font-mono">
+                        <p className="text-xs text-gray-600 mb-2 font-mono">
                             后果: {formatEffects(decision.effects)}
                         </p>
                     )}
 
                     {decision.options ? (
-                        <div className="mt-2 flex flex-wrap gap-3">
+                        <div className="mt-1 flex flex-wrap gap-2">
                             {decision.options.map(opt => {
                                 // Filter options based on current state for toggles
                                 if (decision.id === 'toggle_canteen') {
@@ -128,48 +131,65 @@ const EventCard = () => {
                                     .replace(/\[俱乐部\]/g, state.currentTeam.name)
                                     .replace(/\[执教理念\]/g, state.coachingPhilosophy);
 
+                                const costsFunds = opt.effects && opt.effects.funds < 0;
+                                const lowAuthority = costsFunds && state.stats.authority <= 70;
+                                const limitReached = remainingPoints <= 0;
+                                const disabled = limitReached || lowAuthority;
+
                                 return (
                                     <button
                                         key={opt.id}
                                         onClick={() => handleDecisionClick(decision, opt)}
-                                        className="retro-btn text-sm flex flex-col items-start min-w-[120px]"
+                                        disabled={disabled}
+                                        className={`retro-btn text-xs flex flex-col items-start min-w-[100px] py-1 px-2 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
                                         <span className="font-bold">{optText}</span>
-                                        <span className="text-xs opacity-70 mt-1">({formatEffects(opt.effects)})</span>
+                                        <span className="text-[10px] opacity-70 mt-0.5">({formatEffects(opt.effects)})</span>
+                                        {lowAuthority && <span className="text-[10px] text-red-600 font-bold mt-0.5">需话语权>70</span>}
                                     </button>
                                 );
                             })}
-                        </div>
-                    ) : (
-                        <button
-                            onClick={() => handleDecisionClick(decision)}
-                            className="retro-btn text-sm"
-                        >
-                            执行
-                        </button>
-                    )}
-                </div>
-             );
-          })}
-        </div>
-        
-        {decisionPoints === 0 && (
-            <button
-                onClick={() => dispatch({ type: 'NEXT_MONTH' })}
-                className="mt-8 w-full retro-btn-primary text-xl py-4 uppercase tracking-widest"
-            >
-                结束本月
-            </button>
-        )}
-      </div>
-    );
-  }
+                            </div>
+                        ) : (
+                            (() => {
+                                const costsFunds = decision.effects && decision.effects.funds < 0;
+                                const lowAuthority = costsFunds && state.stats.authority <= 70;
+                                const limitReached = remainingPoints <= 0;
+                                const disabled = limitReached || lowAuthority;
+                                
+                                return (
+                                    <button
+                                        onClick={() => handleDecisionClick(decision)}
+                                        disabled={disabled}
+                                        className={`retro-btn text-xs py-1 px-2 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                        {lowAuthority ? '执行 (需话语权>70)' : '执行'}
+                                    </button>
+                                );
+                            })()
+                        )}
+                    </div>
+                 );
+              })}
+            </div>
+            
+            {remainingPoints <= 0 && (
+                <button
+                    onClick={() => dispatch({ type: 'NEXT_MONTH' })}
+                    className="mt-4 w-full retro-btn-primary text-base py-2 uppercase tracking-widest"
+                >
+                    结束本月
+                </button>
+            )}
+          </div>
+        );
+      }
 
   // Handle Random/Triggered Events
   return (
-    <div className="retro-box p-6 border-l-[8px] border-l-yellow-500">
-      <h3 className="text-3xl font-bold mb-4 font-mono uppercase">{currentEvent.title}</h3>
-      <p className="text-xl mb-8 font-mono leading-relaxed">
+    <div className="retro-box p-4 border-l-[6px] border-l-yellow-500">
+      <h3 className="text-xl font-bold mb-2 font-mono uppercase">{currentEvent.title}</h3>
+      <p className="text-base mb-4 font-mono leading-relaxed">
           {currentEvent.description
             .replace(/\[名字\]/g, state.playerName)
             .replace(/\[俱乐部\]/g, state.currentTeam.name)
@@ -177,7 +197,7 @@ const EventCard = () => {
           }
       </p>
       
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
         {currentEvent.options ? (
             currentEvent.options.map((opt, index) => {
                 const optText = opt.text
@@ -189,10 +209,10 @@ const EventCard = () => {
                     <button
                         key={index}
                         onClick={() => dispatch({ type: 'RESOLVE_EVENT', payload: opt })}
-                        className="retro-btn text-left flex justify-between items-center group"
+                        className="retro-btn text-left flex justify-between items-center group py-2 px-3"
                     >
-                        <span className="text-lg font-bold group-hover:underline">{optText}</span>
-                        <span className="text-sm text-gray-600 ml-4 font-mono">
+                        <span className="text-sm font-bold group-hover:underline">{optText}</span>
+                        <span className="text-xs text-gray-600 ml-2 font-mono">
                             {formatEffects(opt.effects)}
                         </span>
                     </button>
@@ -201,7 +221,7 @@ const EventCard = () => {
         ) : (
              <button
                 onClick={() => dispatch({ type: 'RESOLVE_EVENT', payload: { effects: currentEvent.effects || {} } })}
-                className="retro-btn-primary w-full text-lg"
+                className="retro-btn-primary w-full text-base py-2"
             >
                 确定
             </button>

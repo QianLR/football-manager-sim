@@ -26,6 +26,7 @@ const initialState = {
   },
   activeBuffs: [], // List of active buff/debuff IDs
   tabloidCount: 0,
+  decisionCountThisMonth: 0, // Track number of decisions taken this month
   easterEggTriggered: false
 };
 
@@ -86,9 +87,19 @@ function gameReducer(state, action) {
     case 'TAKE_DECISION':
         const { decisionId, type, effects, optionId } = action.payload;
         
+        // Check if decision limit reached (max 3 per month)
+        if (state.decisionCountThisMonth >= 3) {
+            return state;
+        }
+
         // Check if decision type already taken
         if (state.activeDecisionsTaken.includes(type)) {
-            return state; 
+            return state;
+        }
+
+        // Check authority requirement for using funds
+        if (effects.funds < 0 && state.stats.authority <= 70) {
+            return state;
         }
 
         // Apply effects
@@ -181,7 +192,8 @@ function gameReducer(state, action) {
         return {
             ...state,
             stats: statsAfterDecision,
-            decisionPoints: state.decisionPoints - 1,
+            decisionPoints: state.decisionPoints - 1, // Keep for backward compatibility if needed, but logic relies on count now
+            decisionCountThisMonth: state.decisionCountThisMonth + 1,
             activeDecisionsTaken: [...state.activeDecisionsTaken, type],
             decisionHistory: [...state.decisionHistory, decisionRecord],
             tabloidCount: newTabloidCount,
@@ -408,6 +420,7 @@ function gameReducer(state, action) {
             quarter: nextQuarter,
             year: nextYear,
             decisionPoints: 3,
+            decisionCountThisMonth: 0, // Reset decision count for new month
             activeDecisionsTaken: [],
             currentEvent: eventToTrigger,
             gameState: nextGameStateAfterMonth,
