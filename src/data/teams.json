@@ -55,5 +55,24 @@
       "ranking": 4
     },
     "specialMechanic": "christmas_slump"
+  },
+  {
+    "id": "liverpool",
+    "name": "利物浦",
+    "difficulty": "Hard",
+    "description": "You’ll never walk alone。",
+    "hidden": true,
+    "initialStats": {
+      "boardSupport": 100,
+      "dressingRoom": 100,
+      "mediaSupport": 60,
+      "authority": 60,
+      "funds": 70,
+      "tactics": 6,
+      "points": 0
+    },
+    "expectations": {
+      "ranking": 4
+    }
   }
 ]

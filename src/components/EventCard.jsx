@@ -149,7 +149,11 @@ const EventCard = () => {
                         <div className="mt-2">
                             {isExpanded && (
                                 <div className="flex flex-col gap-1">
-                                    {decision.options.map(opt => {
+                                    {[...decision.options,
+                                      ...(decision.id === 'flirtation' && state.activeBuffs?.includes('istanbul_kiss')
+                                        ? [{ id: 'legend', text: '和名宿调情', effects: { boardSupport: 5, dressingRoom: 5, mediaSupport: 5 } }]
+                                        : [])
+                                    ].map(opt => {
                                     // Filter options based on current state for toggles
                                     if (decision.id === 'toggle_canteen') {
                                         if (specialMechanicState.canteenOpen && opt.id === 'open') return null;
@@ -164,8 +168,9 @@ const EventCard = () => {
 
                                     const costsFunds = opt.effects && opt.effects.funds < 0;
                                     const lowAuthority = costsFunds && state.stats.authority < 70;
+                                    const insufficientFunds = costsFunds && state.stats.funds < Math.abs(opt.effects.funds);
                                     const limitReached = remainingPoints <= 0;
-                                    const disabled = limitReached || lowAuthority;
+                                    const disabled = limitReached || lowAuthority || insufficientFunds;
                                     
                                     return (
                                         <button
@@ -194,8 +199,14 @@ const EventCard = () => {
                             (() => {
                                 const costsFunds = decision.effects && decision.effects.funds < 0;
                                 const lowAuthority = costsFunds && state.stats.authority < 70;
+                                const insufficientFunds = costsFunds && state.stats.funds < Math.abs(decision.effects.funds);
                                 const limitReached = remainingPoints <= 0;
-                                const disabled = limitReached || lowAuthority;
+                                const disabled = limitReached || lowAuthority || insufficientFunds;
+                                const buttonText = lowAuthority
+                                  ? '执行 (需话语权≥70)'
+                                  : insufficientFunds
+                                    ? '执行 (资金不足)'
+                                    : '执行';
                                 
                                 return (
                                     <button
@@ -203,7 +214,7 @@ const EventCard = () => {
                                         disabled={disabled}
                                         className={`retro-btn text-xs w-full py-1 px-2 mt-2 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
-                                        {lowAuthority ? '执行 (需话语权≥70)' : '执行'}
+                                        {buttonText}
                                     </button>
                                 );
                             })()

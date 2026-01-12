@@ -8,6 +8,12 @@ const buffDefinitions = {
     type: 'buff',
     icon: '🌈'
   },
+  'istanbul_kiss': {
+    name: '伊斯坦布尔之吻',
+    description: '在调情中解锁【和名宿调情】选项。',
+    type: 'buff',
+    icon: '💋'
+  },
   'media_darling': {
     name: '媒体宠儿',
     description: '媒体支持极高(>80)，每月自动增加管理层支持。',

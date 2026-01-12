@@ -63,7 +63,7 @@ function App() {
               选择球队
             </label>
             <div className="space-y-2">
-              {teamsData.map(team => (
+              {teamsData.filter(team => !team.hidden).map(team => (
                 <div
                   key={team.id}
                   onClick={() => setSelectedTeam(team.id)}
@@ -106,13 +106,13 @@ function App() {
     }
 
     return (
-      <div className="min-h-screen bg-red-900 flex items-center justify-center p-3 text-white font-mono">
-        <div className="text-center max-w-xl border-4 border-white p-4 bg-red-800 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.5)]">
-          <h1 className="text-4xl font-bold mb-3 uppercase tracking-tighter">下课！</h1>
-          <p className="text-base mb-4 whitespace-pre-wrap leading-relaxed">{reasonText}</p>
+      <div className="min-h-screen bg-white flex items-center justify-center p-3 text-black font-mono">
+        <div className="text-center max-w-xl border-4 border-black p-4 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <h1 className="text-2xl font-bold mb-3 uppercase tracking-tighter">下课</h1>
+          <p className="text-sm mb-4 whitespace-pre-wrap leading-relaxed">{reasonText}</p>
           <button
             onClick={() => window.location.reload()}
-            className="bg-white text-red-900 px-5 py-2 text-lg font-bold hover:bg-gray-200 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+            className="bg-black text-white px-4 py-2 text-sm font-bold hover:bg-gray-800 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
           >
             重新开始
           </button>
@@ -142,12 +142,12 @@ function App() {
 
   return (
     <div className="h-screen bg-[#e0e0e0] p-2 font-mono overflow-hidden">
-      <div className="max-w-6xl w-full h-full mx-auto grid grid-cols-12 gap-2">
-        <div className="col-span-5 md:col-span-4 space-y-2 h-full overflow-auto">
+      <div className="max-w-6xl w-full h-full mx-auto flex flex-col gap-2">
+        <div className="space-y-2 overflow-auto">
           <Dashboard />
           <BuffPool />
         </div>
-        <div className="col-span-7 md:col-span-8 h-full overflow-auto">
+        <div className="flex-1 overflow-auto">
           <EventCard />
         </div>
       </div>

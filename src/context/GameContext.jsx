@@ -19,6 +19,7 @@ const initialState = {
   activeDecisionsTaken: [], // Track decision types taken this month
   decisionHistory: [], // Track all decisions taken for condition checking
   randomEventsThisYear: [],
+  lastRandomEventId: null,
   specialMechanicState: {
     canteenOpen: true, // Man Utd
     roofClosed: false, // Real Madrid
@@ -30,13 +31,37 @@ const initialState = {
   decisionCountThisMonth: 0, // Track number of decisions taken this month
   easterEggTriggered: false,
   pointsThisQuarter: 0,
-  queuedEvent: null
+  queuedEvent: null,
+  pendingGameState: null
 };
 
 function enforceRainbowArmband(stats, activeBuffs) {
   if (!stats || stats.mediaSupport === undefined) return;
   if (!activeBuffs || !activeBuffs.includes('rainbow_armband')) return;
   stats.mediaSupport = Math.max(10, stats.mediaSupport);
+}
+
+function syncDerivedBuffs({ activeBuffs, stats, teamId, specialMechanicState }) {
+  const dynamicBuffs = ['media_darling', 'media_hostile', 'turmoil', 'closed_canteen'];
+  const next = new Set((activeBuffs || []).filter(b => !dynamicBuffs.includes(b)));
+
+  if (stats && stats.mediaSupport !== undefined) {
+    if (stats.mediaSupport > 80) {
+      next.add('media_darling');
+    } else if (stats.mediaSupport < 40) {
+      next.add('media_hostile');
+    }
+  }
+
+  if (stats && stats.dressingRoom !== undefined && stats.dressingRoom < 40) {
+    next.add('turmoil');
+  }
+
+  if (teamId === 'man_utd' && specialMechanicState && specialMechanicState.canteenOpen === false) {
+    next.add('closed_canteen');
+  }
+
+  return Array.from(next);
 }
 
 function buildTabloidBreakingEvent() {
@@ -86,6 +111,50 @@ function buildQuarterExpectationEvent({ quarter, ranking, points, metExpectation
     title: `第${quarterText}个季度答卷`,
     description: `你以第${ranking}名和${points}分交出了第${quarterText}个季度的答卷。很明显，管理层对这个成绩并不满意，他们要求更高的排名。你出席了高层的会议，大家对俱乐部的未来展开了讨论。坐在椅子上的三小时里，你能感受到许多不怀好意的目光。`,
     effects: { boardSupport: -25 }
+  };
+}
+
+function buildSeasonSettlementEvent({ seasonYear, ranking, points, champion }) {
+  if (champion) {
+    return {
+      id: 'season_settlement',
+      title: `第${seasonYear}赛季结算`,
+      description: `你以第${ranking}名和${points}分结束了第${seasonYear}个赛季。冠军属于你。`,
+      effects: {}
+    };
+  }
+
+  return {
+    id: 'season_settlement',
+    title: `第${seasonYear}赛季结算`,
+    description: `你以第${ranking}名和${points}分结束了第${seasonYear}个赛季。赛季结束，新的挑战即将开始。`,
+    effects: {}
+  };
+}
+
+function isAlonsoName(name) {
+  const n = (name || '').trim().toLowerCase();
+  return n === '阿隆索' || n === '哈维阿隆索' || n === 'xabi alonso' || n === 'alonso';
+}
+
+function shouldTriggerAlonsoEasterEgg(state, statsAfter) {
+  if (!state || state.easterEggTriggered) return false;
+  if (!state.currentTeam || !state.playerName) return false;
+  if (!isAlonsoName(state.playerName)) return false;
+  const teamName = state.currentTeam.name;
+  if (teamName === '曼联' || teamName === '利物浦') return false;
+  return (statsAfter.boardSupport <= 0 || statsAfter.dressingRoom <= 0);
+}
+
+function buildGerrardLetterEvent() {
+  return {
+    id: 'gerrard_letter',
+    title: '杰拉德的来信',
+    description: '亲爱的Xabi，\n我很抱歉听到你离开[俱乐部]的消息。虽然现在才给你发消息可能有些晚，但我想问……你愿意来利物浦执教吗？你知道的，这里的所有人都希望你来（包括我）。如果你愿意，我一定会说服他们立刻给你offer的！',
+    options: [
+      { text: 'You’ll never walk alone', effects: {}, switchTeamId: 'liverpool', grantBuff: 'istanbul_kiss' },
+      { text: '礼貌拒绝', effects: {}, setPendingGameState: 'gameover' }
+    ]
   };
 }
 
@@ -160,17 +229,37 @@ function gameReducer(state, action) {
       });
 
       enforceRainbowArmband(newStats, state.activeBuffs);
+
+      const nextBuffsAfterUpdate = syncDerivedBuffs({
+        activeBuffs: state.activeBuffs,
+        stats: newStats,
+        teamId: state.currentTeam?.id,
+        specialMechanicState: state.specialMechanicState
+      });
       
       // Check Game Over conditions
       let nextGameStateAfterUpdate = state.gameState;
       if (newStats.boardSupport <= 0 || newStats.dressingRoom <= 0) {
+        if (shouldTriggerAlonsoEasterEgg(state, newStats)) {
+          return {
+            ...state,
+            stats: newStats,
+            gameState: 'playing',
+            currentEvent: buildGerrardLetterEvent(),
+            queuedEvent: null,
+            pendingGameState: null,
+            easterEggTriggered: true,
+            activeBuffs: nextBuffsAfterUpdate
+          };
+        }
         nextGameStateAfterUpdate = 'gameover';
       }
 
       return {
         ...state,
         stats: newStats,
-        gameState: nextGameStateAfterUpdate
+        gameState: nextGameStateAfterUpdate,
+        activeBuffs: nextBuffsAfterUpdate
       };
 
     case 'TAKE_DECISION':
@@ -188,6 +277,10 @@ function gameReducer(state, action) {
 
         // Check authority requirement for using funds
         if (effects.funds < 0 && state.stats.authority < 70) {
+            return state;
+        }
+
+        if (effects.funds < 0 && (state.stats.funds + effects.funds) < 0) {
             return state;
         }
 
@@ -274,11 +367,61 @@ function gameReducer(state, action) {
             scandalEvent = buildTabloidBreakingEvent();
         }
 
+        let flavorEvent = null;
+        if (decisionId === 'flirtation' && optionId === 'legend') {
+            flavorEvent = {
+                id: 'istanbul_kiss_flavor',
+                title: '伊斯坦布尔之吻',
+                description: '你就是想亲曾经的队长，媒体们有什么可说的呢？',
+                effects: {}
+            };
+        }
+
         enforceRainbowArmband(statsAfterDecision, newActiveBuffs);
+
+        const syncedBuffsAfterDecision = syncDerivedBuffs({
+          activeBuffs: newActiveBuffs,
+          stats: statsAfterDecision,
+          teamId: state.currentTeam?.id,
+          specialMechanicState: newSpecialState
+        });
         
         // Record decision history for conditions (e.g. "flirt_rival")
         // We store "type_optionId" or just "type" if no option
         const decisionRecord = optionId ? `${type}_${optionId}` : type;
+
+        const gameOverNow = statsAfterDecision.boardSupport <= 0 || statsAfterDecision.dressingRoom <= 0;
+        if (gameOverNow && shouldTriggerAlonsoEasterEgg(state, statsAfterDecision)) {
+            return {
+                ...state,
+                stats: statsAfterDecision,
+                decisionPoints: state.decisionPoints - 1,
+                decisionCountThisMonth: state.decisionCountThisMonth + 1,
+                activeDecisionsTaken: [...state.activeDecisionsTaken, type],
+                decisionHistory: [...state.decisionHistory, decisionRecord],
+                tabloidCount: newTabloidCount,
+                specialMechanicState: newSpecialState,
+                activeBuffs: syncedBuffsAfterDecision,
+                pointsThisQuarter: pointsThisQuarterAfterDecision,
+                currentEvent: buildGerrardLetterEvent(),
+                queuedEvent: null,
+                pendingGameState: null,
+                easterEggTriggered: true,
+                gameState: 'playing'
+            };
+        }
+
+        let nextCurrentEventAfterDecision = null;
+        let nextQueuedEventAfterDecision = state.queuedEvent;
+
+        if (flavorEvent) {
+            nextCurrentEventAfterDecision = flavorEvent;
+            if (scandalEvent) {
+                nextQueuedEventAfterDecision = scandalEvent;
+            }
+        } else {
+            nextCurrentEventAfterDecision = scandalEvent;
+        }
 
         return {
             ...state,
@@ -289,9 +432,10 @@ function gameReducer(state, action) {
             decisionHistory: [...state.decisionHistory, decisionRecord],
             tabloidCount: newTabloidCount,
             specialMechanicState: newSpecialState,
-            activeBuffs: newActiveBuffs,
+            activeBuffs: syncedBuffsAfterDecision,
             pointsThisQuarter: pointsThisQuarterAfterDecision,
-            currentEvent: scandalEvent // Trigger scandal if happened
+            currentEvent: nextCurrentEventAfterDecision,
+            queuedEvent: nextQueuedEventAfterDecision
         };
 
     case 'NEXT_MONTH':
@@ -308,6 +452,8 @@ function gameReducer(state, action) {
         let forcedEvent = null;
         let queuedEvent = null;
         let nextRandomEventsThisYear = [...(state.randomEventsThisYear || [])];
+        let nextLastRandomEventId = state.lastRandomEventId;
+        let pendingGameState = null;
 
         // Monthly Canteen Check (Man Utd)
         if (state.currentTeam.id === 'man_utd' && !state.specialMechanicState.canteenOpen) {
@@ -375,24 +521,20 @@ function gameReducer(state, action) {
             // 1. Calculate Ranking (Simplified Simulation)
             // We need a way to determine ranking based on total points vs "virtual" league table.
             // For v1.0, let's map points to a rough ranking.
-            // Max points per quarter = 36. Max total = 144.
-            // Let's assume top team gets ~34 points per quarter.
-            
-            // Let's define "Par Score" for 1st place as 34 * quarter.
-            const parScore = 34 * state.quarter; 
-            const diff = parScore - statsAfterMonth.points;
+            // Max points per quarter = 36. Max total = 108.
+            // Let's assume champion pace is ~96 points for a 3-quarter season (i.e. ~32 points per quarter).
+            const championPaceScore = 32 * state.quarter;
+            const diff = championPaceScore - statsAfterMonth.points;
             
             let estimatedRanking = 1;
             if (diff <= 0) estimatedRanking = 1;
-            else if (diff <= 6) estimatedRanking = 2;
-            else if (diff <= 12) estimatedRanking = 4;
-            else if (diff <= 18) estimatedRanking = 6;
+            else if (diff <= 3) estimatedRanking = 2;
+            else if (diff <= 6) estimatedRanking = 3;
+            else if (diff <= 9) estimatedRanking = 4;
+            else if (diff <= 12) estimatedRanking = 5;
+            else if (diff <= 15) estimatedRanking = 6;
+            else if (diff <= 18) estimatedRanking = 7;
             else estimatedRanking = 8; // GDD says min 8 for giants
-
-            // Modifiers
-            if (statsAfterMonth.dressingRoom < 40) {
-                estimatedRanking += 1;
-            }
             
             // Clamp ranking
             estimatedRanking = Math.min(20, Math.max(1, estimatedRanking));
@@ -427,7 +569,7 @@ function gameReducer(state, action) {
             });
             
             // Check for Victory (End of Season)
-            if (state.quarter === 4) { // Assuming 4 quarters per season
+            if (state.quarter === 3) { // Assuming 3 quarters per season
                 if (estimatedRanking === 1) {
                     victory = true;
                 }
@@ -437,7 +579,7 @@ function gameReducer(state, action) {
         }
         
         // Year logic
-        if (nextQuarter > 4) {
+        if (nextQuarter > 3) {
             nextQuarter = 1;
             nextYear += 1;
             // Season Finale Logic would go here
@@ -445,6 +587,7 @@ function gameReducer(state, action) {
 
         if (nextYear !== state.year) {
             nextRandomEventsThisYear = [];
+            nextLastRandomEventId = null;
         }
 
         // Random Event Logic
@@ -467,12 +610,26 @@ function gameReducer(state, action) {
 
         // Always trigger at least 1 random event each month.
         // At quarter end, trigger 3 random events in sequence.
-        const randomEventCount = settlementEvent ? 3 : 1;
+        const isSeasonEnd = state.quarter === 3 && settlementEvent;
+
+        // At season end, enter the season settlement screen immediately.
+        // For other quarters, still trigger 3 random events.
+        const randomEventCount = isSeasonEnd ? 0 : (settlementEvent ? 3 : 1);
         const sourcePool = validEvents.length > 0 ? validEvents : allEvents;
         const pickedEvents = [];
-        let availablePool = sourcePool.filter(ev => ev && ev.id && !nextRandomEventsThisYear.includes(ev.id));
+        let availablePool = sourcePool.filter(ev => ev && ev.id && !nextRandomEventsThisYear.includes(ev.id) && ev.id !== nextLastRandomEventId);
+
+        // If only the last unused event is the immediate previous one, allow it (better than forcing a reset).
         if (availablePool.length === 0) {
-            availablePool = sourcePool;
+            const allowImmediateRepeatIfNeeded = sourcePool.filter(ev => ev && ev.id && !nextRandomEventsThisYear.includes(ev.id));
+            if (allowImmediateRepeatIfNeeded.length > 0) {
+                availablePool = allowImmediateRepeatIfNeeded;
+            } else {
+                // All events in the pool have been used this year -> restart yearly tracking, still avoiding immediate repeat when possible.
+                nextRandomEventsThisYear = [];
+                const withoutImmediateRepeat = sourcePool.filter(ev => ev && ev.id && ev.id !== nextLastRandomEventId);
+                availablePool = withoutImmediateRepeat.length > 0 ? withoutImmediateRepeat : sourcePool;
+            }
         }
 
         for (let i = 0; i < randomEventCount; i++) {
@@ -487,6 +644,7 @@ function gameReducer(state, action) {
                 if (prepared.id && !nextRandomEventsThisYear.includes(prepared.id)) {
                     nextRandomEventsThisYear.push(prepared.id);
                 }
+                nextLastRandomEventId = prepared.id;
             }
 
             if (availablePool.length === 0) break;
@@ -507,12 +665,28 @@ function gameReducer(state, action) {
             eventToTrigger = pickedEvents[0];
         }
 
-        // Quarterly expectation report takes priority, but chains into any other event
+        // Settlement report takes priority, but chains into any other event
         if (settlementEvent) {
-            if (eventToTrigger) {
-                settlementEvent = { ...settlementEvent, nextEvent: eventToTrigger };
+            // At season end, show season settlement (and optionally end the game after confirming)
+            if (state.quarter === 3) {
+                const seasonSettlementEvent = buildSeasonSettlementEvent({
+                    seasonYear: state.year,
+                    ranking: estimatedRanking,
+                    points: statsAfterMonth.points,
+                    champion: victory
+                });
+
+                eventToTrigger = seasonSettlementEvent;
+                queuedEvent = null;
+                if (victory) {
+                    pendingGameState = 'victory';
+                }
+            } else {
+                if (eventToTrigger) {
+                    settlementEvent = { ...settlementEvent, nextEvent: eventToTrigger };
+                }
+                eventToTrigger = settlementEvent;
             }
-            eventToTrigger = settlementEvent;
         }
 
         if (forcedEvent) {
@@ -528,9 +702,30 @@ function gameReducer(state, action) {
         enforceRainbowArmband(statsAfterMonth, nextActiveBuffs);
 
         if (statsAfterMonth.boardSupport <= 0 || statsAfterMonth.dressingRoom <= 0) {
+            if (shouldTriggerAlonsoEasterEgg(state, statsAfterMonth)) {
+                return {
+                    ...state,
+                    stats: statsAfterMonth,
+                    month: nextMonth,
+                    quarter: nextQuarter,
+                    year: nextYear,
+                    decisionPoints: 3,
+                    decisionCountThisMonth: 0,
+                    activeDecisionsTaken: [],
+                    currentEvent: buildGerrardLetterEvent(),
+                    queuedEvent: null,
+                    gameState: 'playing',
+                    tabloidCount: nextTabloidCount,
+                    activeBuffs: nextActiveBuffs,
+                    pointsThisQuarter: pointsThisQuarterAfterMonth,
+                    randomEventsThisYear: nextRandomEventsThisYear,
+                    lastRandomEventId: nextLastRandomEventId,
+                    pendingGameState: null,
+                    easterEggTriggered: true
+                };
+            }
+
             nextGameStateAfterMonth = 'gameover';
-        } else if (victory) {
-            nextGameStateAfterMonth = 'victory';
         }
 
         return {
@@ -548,10 +743,34 @@ function gameReducer(state, action) {
             activeBuffs: nextActiveBuffs,
             pointsThisQuarter: pointsThisQuarterAfterMonth,
             queuedEvent: queuedEvent,
-            randomEventsThisYear: nextRandomEventsThisYear
+            randomEventsThisYear: nextRandomEventsThisYear,
+            lastRandomEventId: nextLastRandomEventId,
+            pendingGameState: pendingGameState
         };
         
     case 'RESOLVE_EVENT':
+        if (action.payload && action.payload.switchTeamId) {
+            const nextTeam = teamsData.find(t => t.id === action.payload.switchTeamId);
+            if (!nextTeam) return state;
+
+            return {
+                ...initialState,
+                gameState: 'playing',
+                currentTeam: nextTeam,
+                playerName: state.playerName,
+                coachingPhilosophy: state.coachingPhilosophy,
+                stats: { ...nextTeam.initialStats },
+                activeBuffs: action.payload.grantBuff ? [action.payload.grantBuff] : [],
+                easterEggTriggered: true,
+                currentEvent: {
+                    id: 'welcome_liverpool',
+                    title: 'You’ll never walk alone',
+                    description: '你接受了邀请，前往利物浦执教。',
+                    options: [{ text: '开始执教', effects: {} }]
+                }
+            };
+        }
+
         // Apply event option effects
         const eventEffects = action.payload.effects || {};
         const statsAfterEvent = { ...state.stats };
@@ -610,10 +829,31 @@ function gameReducer(state, action) {
         });
 
         enforceRainbowArmband(statsAfterEvent, eventActiveBuffs);
+
+        const syncedBuffsAfterEvent = syncDerivedBuffs({
+          activeBuffs: eventActiveBuffs,
+          stats: statsAfterEvent,
+          teamId: state.currentTeam?.id,
+          specialMechanicState: state.specialMechanicState
+        });
         
         // Check Game Over conditions after event resolution
         let gameStateAfterEvent = state.gameState;
         if (statsAfterEvent.boardSupport <= 0 || statsAfterEvent.dressingRoom <= 0) {
+            if (shouldTriggerAlonsoEasterEgg(state, statsAfterEvent)) {
+                return {
+                    ...state,
+                    stats: statsAfterEvent,
+                    currentEvent: buildGerrardLetterEvent(),
+                    queuedEvent: null,
+                    pendingGameState: null,
+                    easterEggTriggered: true,
+                    gameState: 'playing',
+                    activeBuffs: syncedBuffsAfterEvent,
+                    tabloidCount: nextTabloidCountAfterEvent,
+                    pointsThisQuarter: pointsThisQuarterAfterEvent
+                };
+            }
             gameStateAfterEvent = 'gameover';
         }
 
@@ -636,15 +876,25 @@ function gameReducer(state, action) {
             nextCurrentEvent = scandalEventAfterResolve;
         }
 
+        let nextPendingGameState = state.pendingGameState;
+        if (action.payload && action.payload.setPendingGameState) {
+            nextPendingGameState = action.payload.setPendingGameState;
+        }
+        if (!nextCurrentEvent && nextPendingGameState) {
+            gameStateAfterEvent = nextPendingGameState;
+            nextPendingGameState = null;
+        }
+
         return {
             ...state,
             stats: statsAfterEvent,
             currentEvent: nextCurrentEvent,
             queuedEvent: nextQueuedEvent,
             gameState: gameStateAfterEvent,
-            activeBuffs: eventActiveBuffs,
+            activeBuffs: syncedBuffsAfterEvent,
             tabloidCount: nextTabloidCountAfterEvent,
-            pointsThisQuarter: pointsThisQuarterAfterEvent
+            pointsThisQuarter: pointsThisQuarterAfterEvent,
+            pendingGameState: nextPendingGameState
         };
 
     default:

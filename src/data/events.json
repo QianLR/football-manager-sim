@@ -263,6 +263,36 @@
         "title": "草种事件",
         "description": "训练基地撒草种时撒错了种子，种出来一地大葱，死敌球队买通了媒体，对你们的大葱地争相报道。",
         "effects": { "mediaSupport": -10 }
+      },
+      {
+        "id": "cam_form_drop",
+        "title": "中场状态断崖下滑",
+        "description": "你队里的进攻型中场状态断崖式下滑，媒体纷纷报道。你忧心忡忡，找他谈话，他态度诚恳，承认是自己的家庭问题导致的状态下滑。你感觉到继续使用他会有中场失控的风险，但他平时训练状态良好。你决定：",
+        "options": [
+          { "text": "状态不好就别上了，能者居之", "effects": { "dressingRoom": -5, "authority": 5 } },
+          { "text": "认错态度挺好的，再给他点时间吧", "effects": { "tactics": -0.5 } },
+          { "text": "怒怼多嘴的媒体，安抚愤怒的球迷，但同时让该球员是否出现在首发名单成为开赛前永恒的话题", "effects": { "mediaSupport": -5, "authority": 5 } }
+        ]
+      },
+      {
+        "id": "striker_goal_drought",
+        "title": "前锋进球荒",
+        "description": "你队里的前锋进入了长达六个月的进球荒。这让你不得不怀疑他这个赛季的竞技水平。你找他谈话，但他态度强硬，坚持认为自己已经做到了最好。他是队内大牌球星，拥有大量粉丝基础，你无法撼动他，同时球迷纷纷认为是你的战术问题导致他的状态不佳。你的决定是：",
+        "options": [
+          { "text": "顺从球迷，在队内安排把球权多送给他", "effects": { "tactics": -1 } },
+          { "text": "人不行别怪路不平，让他首发但坚持战术", "effects": { "dressingRoom": -5, "tactics": -0.5 } },
+          { "text": "状态差还敢顶嘴？坐板凳去吧你", "effects": { "dressingRoom": -15 } }
+        ]
+      },
+      {
+        "id": "captain_rival_romance",
+        "title": "队长与死敌队长恋爱",
+        "description": "你发现你队中的队长正在和死敌球队的队长谈恋爱！！你大发雷霆——这和你一直贯彻的理念完全违背。更气人的是，你的疯癫前任就是死敌球队的主教练。媒体普遍评论，这是由于你对疯癫前任的恨转移到了他的球队身上。你选择：",
+        "options": [
+          { "text": "强行拆散，不分手就滚！随媒体说去吧", "effects": { "mediaSupport": -5, "dressingRoom": -10, "authority": 10 } },
+          { "text": "忍气吞声", "effects": { "authority": -5 } },
+          { "text": "送上祝福，并让队长在下一次比赛前/比赛中使用美人计，扰乱对面军心", "effects": { "mediaSupport": 5, "tabloid": 1 } }
+        ]
       }
     ],
     "teamSpecific": {
