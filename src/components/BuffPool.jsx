@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useGame } from '../context/GameContext';
 
 const buffDefinitions = {
@@ -87,11 +87,30 @@ const BuffPool = () => {
   const { state } = useGame();
   const { activeBuffs } = state;
 
+  const [expanded, setExpanded] = useState(false);
+
+  const shouldCollapse = (activeBuffs || []).length > 3;
+  const visibleBuffs = useMemo(() => {
+    const list = activeBuffs || [];
+    if (!shouldCollapse) return list;
+    return expanded ? list : list.slice(0, 3);
+  }, [activeBuffs, expanded, shouldCollapse]);
+
   return (
     <div className="retro-box p-2">
-        <h3 className="text-sm font-bold font-mono uppercase border-b-2 border-black pb-1 mb-2">
-            状态池 (BUFFS/DEBUFFS)
-        </h3>
+        <div className="flex items-center justify-between border-b-2 border-black pb-1 mb-2">
+            <h3 className="text-sm font-bold font-mono uppercase">
+                状态池 (BUFFS/DEBUFFS)
+            </h3>
+            {shouldCollapse ? (
+                <button
+                    onClick={() => setExpanded(v => !v)}
+                    className="retro-btn text-[11px] py-1 px-2"
+                >
+                    {expanded ? '收起' : `展开（+${(activeBuffs || []).length - 3}）`}
+                </button>
+            ) : null}
+        </div>
         
         {activeBuffs.length === 0 ? (
             <div className="text-gray-500 font-mono italic text-center py-2 text-xs">
@@ -99,7 +118,7 @@ const BuffPool = () => {
             </div>
         ) : (
             <div className="grid grid-cols-1 gap-2">
-                {activeBuffs.map(buffId => {
+                {visibleBuffs.map(buffId => {
                     const def = buffDefinitions[buffId];
                     if (!def) return null;
                     
