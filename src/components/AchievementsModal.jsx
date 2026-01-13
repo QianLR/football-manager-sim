@@ -45,7 +45,13 @@ export default function AchievementsModal({ open, title, unlockedMap, onClose })
 
   useEffect(() => {
     if (!open) return;
-    setPinnedId(readPinnedAchievementId());
+    const nextPinned = readPinnedAchievementId();
+    if (nextPinned && !unlocked[nextPinned]) {
+      writePinnedAchievementId(null);
+      setPinnedId(null);
+      return;
+    }
+    setPinnedId(nextPinned);
   }, [open, isGlobalView]);
 
   const listIds = useMemo(() => {
@@ -62,13 +68,14 @@ export default function AchievementsModal({ open, title, unlockedMap, onClose })
     });
 
     const sorted = unlockedList.concat(lockedList);
-    if (pinnedId && sorted.includes(pinnedId)) {
+    if (pinnedId && unlocked[pinnedId] && sorted.includes(pinnedId)) {
       return [pinnedId, ...sorted.filter(id => id !== pinnedId)];
     }
     return sorted;
   }, [isGlobalView, pinnedId, unlocked, unlockedIds]);
 
   const togglePin = (id) => {
+    if (!unlocked[id]) return;
     const next = pinnedId === id ? null : id;
     setPinnedId(next);
     writePinnedAchievementId(next);
@@ -97,6 +104,7 @@ export default function AchievementsModal({ open, title, unlockedMap, onClose })
               const isUnlocked = Boolean(unlocked[id]);
               const showClue = isGlobalView && !isUnlocked;
               const isPinned = isGlobalView && pinnedId === id;
+              const displayTitle = showClue ? '？？？' : def.title;
               return (
                 <div
                   key={id}
@@ -106,8 +114,8 @@ export default function AchievementsModal({ open, title, unlockedMap, onClose })
                     <div className="text-lg">{isUnlocked ? '🏆' : '🔒'}</div>
                     <div className="flex-1">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="font-bold text-xs font-mono text-black leading-snug">{def.title}</div>
-                        {isGlobalView ? (
+                        <div className="font-bold text-xs font-mono text-black leading-snug">{displayTitle}</div>
+                        {isGlobalView && isUnlocked ? (
                           <button
                             onClick={() => togglePin(id)}
                             className={`retro-btn text-[10px] py-0.5 px-1.5 ${isPinned ? 'bg-yellow-200' : ''}`}

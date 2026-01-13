@@ -1569,6 +1569,9 @@ function gameReducer(state, action) {
           if (state.currentTeam?.id === 'chelsea') {
             nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'chelsea_5_years');
           }
+          if (state.currentTeam?.id === 'liverpool') {
+            nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'liverpool_5_years');
+          }
           if (state.currentTeam?.id === 'arsenal') {
             nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'arsenal_5_years');
           }

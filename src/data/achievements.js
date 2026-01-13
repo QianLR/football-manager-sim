@@ -21,13 +21,19 @@ export const ACHIEVEMENTS = [
     id: 'chelsea_5_years',
     title: '英超名菜终结者',
     hint: '您已执教切尔西超过五个赛季，终结了该球队炒教练的历史！',
-    clue: '在伦敦坚持下去。'
+    clue: '在斯坦福桥坚持下去。'
+  },
+  {
+    id: 'liverpool_5_years',
+    title: '我必与你同进共退，因你生而永不独行',
+    hint: '您已执教利物浦超过五个赛季。',
+    clue: '你永不独行。'
   },
   {
     id: 'mourinho_arsenal',
     title: '知难而上，你先别问难从哪里来',
     hint: '使用“穆里尼奥”的名字在阿森纳任职。',
-    clue: '让那个热刺、切尔西与曼联的主教练执教阿森纳。'
+    clue: '让那个在热刺、切尔西与曼联的人执教阿森纳。'
   },
   {
     id: 'arsenal_5_years',
@@ -45,31 +51,31 @@ export const ACHIEVEMENTS = [
     id: 'gerrard_manutd',
     title: '最速下课传说',
     hint: '使用“杰拉德”的名字在曼联任职。',
-    clue: '让一位来自默西塞德的影子走进梦剧场。'
+    clue: '有些名字在梦剧场并不受欢迎。'
   },
   {
     id: 'alonso_manutd_fired',
     title: '比爱更深的是恨',
     hint: '也许下次，在你执教水平不精的时候，换个不那么红魔的俱乐部试试。',
-    clue: '有些名字在梦剧场并不受欢迎。'
+    clue: '你以为他还会来帮你，但这次他没有。'
   },
   {
     id: 'alonso_letter_accept',
     title: 'My hero. My mate.',
     hint: '获得杰拉德的来信并前往利物浦执教。',
-    clue: '别错过一封特别的来信。'
+    clue: '一封特别的、刻着红色鸟爪印的来信。'
   },
   {
     id: 'alonso_letter_reject',
     title: '昔时已是来时路',
     hint: '你没有选择回头。',
-    clue: '学会拒绝回头。'
+    clue: '你没有再回到安菲尔德。'
   },
   {
     id: 'arteta_ex_husband',
     title: '前夫哥，救一下',
     hint: '触发“你的前夫很关心你”事件',
-    clue: '危机时，也许有人会拉你一把。'
+    clue: '“他”。'
   },
   {
     id: 'ucl_champion',
