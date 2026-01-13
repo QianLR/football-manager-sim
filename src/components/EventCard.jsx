@@ -63,20 +63,6 @@ const EventCard = () => {
     return parts.join(', ');
   };
 
-  const getDisplayedDecisionEffects = (decisionId, optionId, effects) => {
-    if (decisionId === 'flirtation' && state.tabloidStalkingUnlocked) {
-      if (optionId === 'rival_coach') {
-        return { ...(effects || {}), tactics: 0.5 };
-      }
-      if (optionId === 'foreign_coach') {
-        const next = { ...(effects || {}), tabloid: 1 };
-        delete next.chance_tabloid;
-        return next;
-      }
-    }
-    return effects;
-  };
-
   const replaceDynamicText = (text) => {
     if (!text) return text;
     const teamName = state.currentTeam?.name || '';
@@ -112,6 +98,9 @@ const EventCard = () => {
         if (d.condition && d.condition.year && state.year < d.condition.year) {
             return false;
         }
+        if (d.condition && d.condition.buff) {
+            return Boolean(state.activeBuffs && state.activeBuffs.includes(d.condition.buff));
+        }
         return true; 
     });
 
@@ -119,7 +108,9 @@ const EventCard = () => {
         // Construct payload
         const effects = option ? option.effects : decision.effects;
         const optionId = option ? option.id : null;
-        const optionDescription = option ? option.description : null;
+        const optionDescription = option
+          ? option.description
+          : (decision.id === 'legend_flirt' ? decision.description : null);
         
         dispatch({
             type: 'TAKE_DECISION',
@@ -163,13 +154,6 @@ const EventCard = () => {
              const isTaken = activeDecisionsTaken.includes(decision.type);
              if (isTaken) return null; // Hide taken decisions
              
-             // Check conditions (e.g. authority > 60)
-             if (decision.condition) {
-                 if (decision.condition.authority && state.stats.authority < decision.condition.authority) {
-                     return null;
-                 }
-             }
-
              // Special handling for toggle decisions description
              let description = decision.description;
              if (description) {
@@ -247,8 +231,10 @@ const EventCard = () => {
 
                                 let optText = replaceDynamicText(opt.text);
 
+                                    const requiredAuthority = decision.condition && decision.condition.authority;
+
                                     const costsFunds = opt.effects && opt.effects.funds < 0;
-                                    const lowAuthority = costsFunds && state.stats.authority < 70;
+                                    const lowAuthority = requiredAuthority && state.stats.authority < requiredAuthority;
                                     const insufficientFunds = costsFunds && state.stats.funds < Math.abs(opt.effects.funds);
                                     const limitReached = remainingPoints <= 0;
                                     const disabled = limitReached || lowAuthority || insufficientFunds;
@@ -261,7 +247,7 @@ const EventCard = () => {
                                             className={`retro-btn text-xs flex justify-between items-center py-1 px-2 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
                                             <span className="font-bold">{optText}</span>
-                                            <span className="text-[8px] text-gray-500 font-mono">{formatEffects(getDisplayedDecisionEffects(decision.id, opt.id, opt.effects))}</span>
+                                            <span className="text-[8px] text-gray-500 font-mono">{formatEffects(opt.effects)}</span>
                                         </button>
                                     );
                                     })}
@@ -278,13 +264,14 @@ const EventCard = () => {
                         </div>
                         ) : (
                             (() => {
+                                const requiredAuthority = decision.condition && decision.condition.authority;
                                 const costsFunds = decision.effects && decision.effects.funds < 0;
-                                const lowAuthority = costsFunds && state.stats.authority < 70;
+                                const lowAuthority = requiredAuthority && state.stats.authority < requiredAuthority;
                                 const insufficientFunds = costsFunds && state.stats.funds < Math.abs(decision.effects.funds);
                                 const limitReached = remainingPoints <= 0;
                                 const disabled = limitReached || lowAuthority || insufficientFunds;
                                 const buttonText = lowAuthority
-                                  ? '执行 (需话语权≥70)'
+                                  ? `执行 (需话语权≥${requiredAuthority})`
                                   : insufficientFunds
                                     ? '执行 (资金不足)'
                                     : '执行';

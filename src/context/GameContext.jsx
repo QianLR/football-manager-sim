@@ -915,7 +915,7 @@ function gameReducer(state, action) {
         currentEvent: {
           id: 'intro',
           title: '欢迎执教',
-          description: `欢迎来到${team.name}，主教练[名字]。你选择的执教理念是“[执教理念]”。现在开始你的执教生涯吧！`,
+          description: '【经过漫长的拉扯和谈判，教练[名字]终于下树，[俱乐部]将在[执教理念]的理念下迎来新的挑战。这位新教练能在此坚持多久呢？[俱乐部]能夺得本赛季的冠军吗？让我们拭目以待！】',
           options: [{ text: '开始', effects: {} }]
         }
       };
@@ -1156,6 +1156,8 @@ function gameReducer(state, action) {
              newTabloidCount += effectiveEffects.tabloid;
         }
 
+        newTabloidCount = Math.max(0, newTabloidCount);
+
         // Handle special mechanics (Canteen/Roof)
         let newSpecialState = { ...state.specialMechanicState };
         if (effectiveEffects.special_canteen) {
@@ -1184,7 +1186,14 @@ function gameReducer(state, action) {
         const nextCoffeeRefUsedThisQuarterAfterDecision = state.coffeeRefUsedThisQuarter || decisionId === 'coffee_ref';
 
         let flavorEvent = null;
-        if (optionDescription) {
+        if (decisionId === 'legend_flirt') {
+            flavorEvent = {
+                id: 'istanbul_kiss_flavor',
+                title: '伊斯坦布尔之吻',
+                description: '你就是想亲曾经的队长，媒体们有什么可说的呢？',
+                effects: {}
+            };
+        } else if (optionDescription) {
             const decisionDef = (eventsData.activeDecisions || []).find(d => d.id === decisionId);
             const decisionTitle = decisionDef?.title || '发布会';
             flavorEvent = {
@@ -2326,6 +2335,20 @@ function gameReducer(state, action) {
         let nextPendingGameState = state.pendingGameState;
         if (action.payload && action.payload.setPendingGameState) {
             nextPendingGameState = action.payload.setPendingGameState;
+        }
+
+        const isDoubleCrown = Boolean(
+          isResolvingSeasonSettlement &&
+          state.currentEvent &&
+          state.currentEvent.champion &&
+          typeof state.currentEvent.seasonYear === 'number' &&
+          state.uclWonSeasonYear === state.currentEvent.seasonYear
+        );
+
+        if (isDoubleCrown) {
+          nextPendingGameState = 'double_crown';
+          nextCurrentEvent = null;
+          nextQueuedEvent = null;
         }
 
         // After season 1 ends (state.year has advanced to 2), inject a fixed intro event before season 2 begins.

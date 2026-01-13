@@ -36,6 +36,14 @@
       "effects": { "dressingRoom": -10, "boardSupport": 2, "authority": 5, "mediaSupport": -2 }
     },
     {
+      "id": "legend_flirt",
+      "title": "和名宿调情",
+      "type": "risk",
+      "condition": { "buff": "istanbul_kiss" },
+      "description": "你就是想亲曾经的队长，媒体们有什么可说的呢？",
+      "effects": { "boardSupport": 5, "dressingRoom": 5, "mediaSupport": 5 }
+    },
+    {
       "id": "flirtation",
       "title": "调情",
       "type": "risk",
@@ -43,12 +51,12 @@
         {
           "id": "rival_coach",
           "text": "和同联赛教练调情",
-          "effects": { "tabloid": 1, "tactics": 1 }
+          "effects": { "tabloid": 1 }
         },
         {
           "id": "foreign_coach",
           "text": "和其他联赛教练调情",
-          "effects": { "tactics": 0.5, "chance_tabloid": true }
+          "effects": { "chance_tabloid": true }
         },
         {
           "id": "player",
