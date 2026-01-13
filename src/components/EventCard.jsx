@@ -106,7 +106,16 @@ const EventCard = () => {
 
     const handleDecisionClick = (decision, option = null) => {
         // Construct payload
-        const effects = option ? option.effects : decision.effects;
+        let effects = option ? option.effects : decision.effects;
+        if (
+          decision.id === 'flirtation' &&
+          state.year >= 2 &&
+          option &&
+          (option.id === 'rival_coach' || option.id === 'foreign_coach')
+        ) {
+          effects = { ...(effects || {}), tabloid: 1, tactics: 0.5 };
+          delete effects.chance_tabloid;
+        }
         const optionId = option ? option.id : null;
         const optionDescription = option
           ? option.description
@@ -207,7 +216,7 @@ const EventCard = () => {
                                 <div className="flex flex-col gap-1">
                                     {[...decision.options,
                                       ...(decision.id === 'flirtation' && state.activeBuffs?.includes('istanbul_kiss')
-                                        ? [{ id: 'legend', text: '和名宿调情', effects: { boardSupport: 5, dressingRoom: 5, mediaSupport: 5 } }]
+                                        ? [{ id: 'legend_flirt', text: '和名宿调情', description: '你就是想亲曾经的队长，媒体们有什么可说的呢？', effects: { boardSupport: 5, dressingRoom: 5, mediaSupport: 5 } }]
                                         : [])
                                     ].map(opt => {
                                     if (opt.condition && opt.condition.year && state.year < opt.condition.year) {

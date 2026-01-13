@@ -1038,6 +1038,15 @@ function gameReducer(state, action) {
         const { decisionId, type, effects, optionId, optionDescription } = action.payload;
 
         let effectiveEffects = effects;
+
+        if (
+          decisionId === 'flirtation' &&
+          state.year >= 2 &&
+          (optionId === 'rival_coach' || optionId === 'foreign_coach')
+        ) {
+          effectiveEffects = { ...(effectiveEffects || {}), tabloid: 1, tactics: 0.5 };
+          delete effectiveEffects.chance_tabloid;
+        }
         
         // Check if decision limit reached (max 3 per month)
         if (state.decisionCountThisMonth >= 3) {
@@ -1186,7 +1195,7 @@ function gameReducer(state, action) {
         const nextCoffeeRefUsedThisQuarterAfterDecision = state.coffeeRefUsedThisQuarter || decisionId === 'coffee_ref';
 
         let flavorEvent = null;
-        if (decisionId === 'legend_flirt') {
+        if (decisionId === 'flirtation' && optionId === 'legend_flirt') {
             flavorEvent = {
                 id: 'istanbul_kiss_flavor',
                 title: '伊斯坦布尔之吻',
