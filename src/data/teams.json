@@ -4,6 +4,9 @@
     "name": "曼联",
     "difficulty": "Hell",
     "description": "深陷重建泥潭的球队，名宿没有执教能力，但在媒体上十分活跃——并不对你有利。即使阵容残缺，管理层仍然期望前四名的水准，且不愿给你话语权。",
+    "leagueId": "epl",
+    "leagueSize": 20,
+    "leagueIndex": 1,
     "initialStats": {
       "boardSupport": 100,
       "dressingRoom": 100,
@@ -23,6 +26,8 @@
     "name": "皇家马德里",
     "difficulty": "Hard",
     "description": "拥有强大的媒体支持和最高的初始技战术水平，当然也包括丰厚的资金。然而你的话语权并不高，且管理层的期望仅有夺冠。",
+    "leagueId": "laliga",
+    "leagueSize": 20,
     "initialStats": {
       "boardSupport": 100,
       "dressingRoom": 100,
@@ -42,6 +47,9 @@
     "name": "阿森纳",
     "difficulty": "Easy",
     "description": "球队的期望为前四名，资金中等，媒体环境中等。虽然你是一位新人教练，但也拥有极高的话语权。初始即可动用球队资金。",
+    "leagueId": "epl",
+    "leagueSize": 20,
+    "leagueIndex": 4,
     "initialStats": {
       "boardSupport": 100,
       "dressingRoom": 100,
@@ -57,18 +65,85 @@
     "specialMechanic": "christmas_slump"
   },
   {
+    "id": "chelsea",
+    "name": "切尔西",
+    "difficulty": "Hard",
+    "description": "你拥有最多的资金，代价是过高的话语权会摧毁管理层的信任。媒体对你们不错。球队对联赛排名期望不高，但对杯赛冠军势在必得。",
+    "leagueId": "epl",
+    "leagueSize": 20,
+    "leagueIndex": 3,
+    "initialStats": {
+      "boardSupport": 100,
+      "dressingRoom": 100,
+      "mediaSupport": 60,
+      "authority": 50,
+      "funds": 200,
+      "tactics": 7,
+      "points": 0
+    },
+    "expectations": {
+      "ranking": 8
+    },
+    "specialMechanic": "chelsea_sack_pressure"
+  },
+  {
+    "id": "dortmund",
+    "name": "多特蒙德",
+    "difficulty": "Hard",
+    "description": "球队的期望不高，正如球队的资金不多。好消息是，你有一个非常讨媒体喜欢的吉祥物；坏消息是，你是无证上岗，意味着你每月还得去考教练证。",
+    "leagueId": "bundesliga",
+    "leagueSize": 18,
+    "initialStats": {
+      "boardSupport": 100,
+      "dressingRoom": 100,
+      "mediaSupport": 90,
+      "authority": 60,
+      "funds": 40,
+      "tactics": 6,
+      "points": 0
+    },
+    "expectations": {
+      "ranking": 4
+    },
+    "specialMechanic": "dortmund_license_exam"
+  },
+  {
+    "id": "ac_milan",
+    "name": "AC米兰",
+    "difficulty": "Easy",
+    "description": "贫穷让你的执教步履维艰，但热心助人的名宿团补充了这一点。球队的期望为前三名，给你的话语权相对中等。",
+    "leagueId": "serie_a",
+    "leagueSize": 20,
+    "initialStats": {
+      "boardSupport": 100,
+      "dressingRoom": 100,
+      "mediaSupport": 60,
+      "authority": 60,
+      "funds": 2,
+      "tactics": 6,
+      "points": 0
+    },
+    "expectations": {
+      "ranking": 3
+    },
+    "specialMechanic": "milan_legends"
+  },
+  {
     "id": "liverpool",
     "name": "利物浦",
     "difficulty": "Hard",
     "description": "You’ll never walk alone。",
     "hidden": true,
+    "leagueId": "epl",
+    "leagueSize": 20,
+    "leagueIndex": 5,
     "initialStats": {
       "boardSupport": 100,
       "dressingRoom": 100,
       "mediaSupport": 60,
       "authority": 60,
       "funds": 25,
-      "tactics": 6,
+      "tactics": 7,
       "points": 0
     },
     "expectations": {

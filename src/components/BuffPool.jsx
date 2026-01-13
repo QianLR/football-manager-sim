@@ -37,6 +37,49 @@ const buffDefinitions = {
     description: '为了节省开支关闭了食堂，每月更衣室稳定度持续下降。',
     type: 'debuff',
     icon: '🍔'
+  },
+  'legacy_issues': {
+    name: '历史遗留问题',
+    description: '哇哦…管理层似乎对你不太满意。',
+    type: 'debuff',
+    icon: '🧾'
+  },
+  'chelsea_sack_pressure': {
+    name: '英超名菜切尔西炒教练',
+    description: '话语权在60以上的部分，每个月会扣除相应的管理层支持。',
+    type: 'debuff',
+    theme: 'blue',
+    icon: '🔵'
+  },
+  'dortmund_emma_camera': {
+    name: 'Emma摄影中',
+    description: '媒体支持不低于40点。',
+    type: 'buff',
+    icon: '📸'
+  },
+  'dortmund_unlicensed': {
+    name: '无证驾驶',
+    description: '第一赛季的每个月只有两个决策点。',
+    type: 'debuff',
+    icon: '🪪'
+  },
+  'milan_baresi': {
+    name: '名宿团：巴雷西',
+    description: '本赛季持续援助：每个月管理层支持 +10。',
+    type: 'buff',
+    icon: '🛡️'
+  },
+  'milan_nesta': {
+    name: '名宿团：内斯塔',
+    description: '本赛季持续援助：每个月更衣室稳定 +10。',
+    type: 'buff',
+    icon: '🍝'
+  },
+  'milan_maldini': {
+    name: '名宿团：马尔蒂尼',
+    description: '本赛季持续援助：每个月媒体支持 +10。',
+    type: 'buff',
+    icon: '🥤'
   }
 };
 
@@ -61,9 +104,10 @@ const BuffPool = () => {
                     if (!def) return null;
                     
                     const isBuff = def.type === 'buff';
-                    const bgColor = isBuff ? 'bg-green-100' : 'bg-red-100';
-                    const borderColor = isBuff ? 'border-green-800' : 'border-red-800';
-                    const textColor = isBuff ? 'text-green-900' : 'text-red-900';
+                    const theme = def.theme;
+                    const bgColor = theme === 'blue' ? 'bg-blue-100' : (isBuff ? 'bg-green-100' : 'bg-red-100');
+                    const borderColor = theme === 'blue' ? 'border-blue-800' : (isBuff ? 'border-green-800' : 'border-red-800');
+                    const textColor = theme === 'blue' ? 'text-blue-900' : (isBuff ? 'text-green-900' : 'text-red-900');
 
                     return (
                         <div key={buffId} className={`border-2 ${borderColor} ${bgColor} p-2 flex items-start gap-2`}>

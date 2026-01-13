@@ -71,6 +71,18 @@
           "id": "relaxed",
           "text": "放宽训练时间，并在更衣室里放美味披萨",
           "effects": { "tactics": -0.5, "dressingRoom": 10, "boardSupport": -2 }
+        },
+        {
+          "id": "silent_grind",
+          "text": "不语，只是一味地加强训练",
+          "condition": { "year": 2 },
+          "effects": { "tactics": 0.5, "dressingRoom": -5, "injuryRisk": 1 }
+        },
+        {
+          "id": "open_training",
+          "text": "公开训练并卖门票",
+          "condition": { "year": 2 },
+          "effects": { "funds": 10, "opponents_tactics_boost": 0.5 }
         }
       ]
     },
@@ -98,6 +110,13 @@
       "title": "和记者喝咖啡",
       "type": "media_relations",
       "effects": { "tabloid": -1, "funds": -5 }
+    },
+    {
+      "id": "hire_doctor",
+      "title": "雇佣新的队医",
+      "type": "medical",
+      "condition": { "year": 2 },
+      "effects": { "injuryRisk": -1, "funds": -5 }
     },
     {
       "id": "toggle_canteen",
@@ -128,30 +147,33 @@
         "id": "striker_gk_romance",
         "title": "前锋与门将恋爱",
         "description": "你发现队里的前锋与门将开始谈起了恋爱，这使得前锋在球门前感到非常犹豫，因为他总会想到自己的恋人在面对破门时的无助。因此，他已经连续三场错失了绝佳机会。你的决定是：",
+        "revealAfterChoice": true,
         "options": [
-          { "text": "无视", "effects": { "tactics": -0.5 } },
-          { "text": "祝福他们", "effects": { "dressingRoom": 10, "tactics": -1 } },
-          { "text": "棒打鸳鸯", "effects": { "dressingRoom": -10, "authority": 5 } }
+          { "id": "ignore", "text": "无视", "effects": { "tactics": -0.5 }, "outcomeText": "前锋在空门前再次犹豫，皮球滑门而出。你沉默地看着这一切发生。" },
+          { "id": "bless", "text": "祝福他们", "effects": { "dressingRoom": 10, "tactics": -1 }, "outcomeText": "“祝你们幸福。”你的话让全队都松了口气，但前锋射门时眼里依然只有门将的身影……" },
+          { "id": "break", "text": "棒打鸳鸯", "effects": { "dressingRoom": -10, "authority": 5 }, "outcomeText": "“立刻分手，否则滚出我的球队！”你的强硬让更衣室一片死寂。" }
         ]
       },
       {
         "id": "cam_st_romance",
         "title": "进攻型中场和中锋恋爱",
         "description": "你发现队里的进攻型中场和中锋开始谈起了恋爱，这使得他们的传接变得更有默契，收获多个进球，但也引来了其他球员的不满。他们一致认为，这两位队友从不把球传给别人，是球霸行为。你的决定是：",
+        "revealAfterChoice": true,
         "options": [
-          { "text": "无视", "effects": { "dressingRoom": -5, "tactics": 0.5 } },
-          { "text": "能进球你们做什么都行！祝福他们", "effects": { "dressingRoom": -10, "tactics": 0.5, "mediaSupport": 5 } },
-          { "text": "年轻的中场不能遇见太惊艳的中锋！拆散他们", "effects": { "dressingRoom": 5, "tactics": -0.5 } }
+          { "id": "ignore", "text": "无视", "effects": { "dressingRoom": -5, "tactics": 0.5 }, "outcomeText": "他们又进球了，但其他球员越来越沉默。更衣室里开始出现小团体的裂痕。" },
+          { "id": "bless", "text": "能进球你们做什么都行！祝福他们", "effects": { "dressingRoom": -10, "tactics": 0.5, "mediaSupport": 5 }, "outcomeText": "媒体盛赞你的开明，但更衣室里其他球员呢？你最好不要去想。" },
+          { "id": "break", "text": "年轻的中场不能遇见太惊艳的中锋！拆散他们", "effects": { "dressingRoom": 5, "tactics": -0.5 }, "outcomeText": "你强行拆散了这对球霸情侣，其他球员如释重负，但场上那种灵性的配合再也回不来了。" }
         ]
       },
       {
         "id": "cb_cb_romance",
         "title": "中卫搭档恋爱",
         "description": "你发现队里的两个中卫搭档谈起了恋爱，他们的配合一直很有默契，感情也十分低调。但小报记者似乎已经注意到了这段恋情的端倪。如果记者抓住了证据，他们可能会在媒体上被严肃批评，管理层也可能会质疑你的球队治理能力。你的决定是：",
+        "revealAfterChoice": true,
         "options": [
-          { "text": "无视", "effects": { "tabloid": 1, "dressingRoom": -5 } },
-          { "text": "祝福他们，与他们坚定地站在一起", "effects": { "tabloid": 2, "dressingRoom": 15, "boardSupport": -5 } },
-          { "text": "为了球队，你们忍一忍吧！拆散他们", "effects": { "dressingRoom": -15, "boardSupport": 5 } }
+          { "id": "ignore", "text": "无视", "effects": { "tabloid": 1, "dressingRoom": -5 }, "outcomeText": "第二天小报刊登了他们牵手的照片。两人低着头走进更衣室，队友们的目光让气氛凝固。" },
+          { "id": "bless", "text": "祝福他们，与他们坚定地站在一起", "effects": { "tabloid": 2, "dressingRoom": 15, "boardSupport": -5 }, "outcomeText": "你在发布会上公开支持他们，全队感动得热泪盈眶。但管理层的电话在五分钟后打了过来……" },
+          { "id": "break", "text": "为了球队，你们忍一忍吧！拆散他们", "effects": { "dressingRoom": -15, "boardSupport": 5 }, "outcomeText": "管理层对你的果断表示赞赏，但更衣室则沉默了。" }
         ]
       },
       {
@@ -159,10 +181,11 @@
         "title": "与死敌主教练的恋情谣言",
         "description": "你发现小报正在编撰你和死敌球队主教练的恋情谣言。这让你大惊失色，因为你们真的有过一段关系！你当然可以选择无视，但越来越多的人开始相信这则新闻，有的球迷甚至怀疑你是球队内鬼。你的决定是：",
         "condition": { "type": "decision_history", "value": "risk", "detail": "rival_coach" },
+        "revealAfterChoice": true,
         "options": [
-          { "text": "无视", "effects": { "tabloid": 1, "boardSupport": -5 } },
-          { "text": "把小报记者抓来喝咖啡", "effects": { "mediaSupport": -15, "boardSupport": 5, "tabloid": -1 } },
-          { "text": "召开发布会：“对，我们就是谈过，怎么了？”", "effects": { "mediaSupport": 10, "boardSupport": -15, "special_rainbow_armband": true } }
+          { "id": "ignore", "text": "无视", "effects": { "tabloid": 1, "boardSupport": -5 }, "outcomeText": "谣言越传越真，球迷开始在你家门口举牌抗议。" },
+          { "id": "coffee", "text": "把小报记者抓来喝咖啡", "effects": { "mediaSupport": -15, "boardSupport": 5, "tabloid": -1 }, "outcomeText": "记者在友好交谈后删除了稿件。" },
+          { "id": "press", "text": "召开发布会：“对，我们就是谈过，怎么了？”", "effects": { "mediaSupport": 10, "boardSupport": -15, "special_rainbow_armband": true }, "outcomeText": "你的勇敢让无数球迷泪目，但管理层已经在考虑你的解约金问题了。不过，至少，媒体永远站在你这边。" }
         ]
       },
       {
@@ -170,10 +193,11 @@
         "title": "私生子传闻",
         "description": "你发现小报正在编撰你和某个遥远联赛主教练的谣言，称你们有一个孩子。这让你大惊失色，因为你们真的有一个孩子！你当然可以选择无视，但越来越多的人开始相信这则新闻，不少球迷要求你把孩子带到球队青训。你的决定是：",
         "condition": { "type": "decision_history", "value": "risk", "detail": "foreign_coach" },
+        "revealAfterChoice": true,
         "options": [
-          { "text": "无视", "effects": { "tabloid": 1, "mediaSupport": -5 } },
-          { "text": "把小报记者抓来喝咖啡", "effects": { "mediaSupport": -15, "boardSupport": 5, "tabloid": -1 } },
-          { "text": "召开发布会：“是的，我们有一个孩子。”", "effects": { "mediaSupport": 10, "boardSupport": -10, "dressingRoom": -5 } }
+          { "id": "ignore", "text": "无视", "effects": { "tabloid": 1, "mediaSupport": -5 }, "outcomeText": "球迷已经开始众筹DNA检测费用，媒体质疑你不敢面对真相。" },
+          { "id": "coffee", "text": "把小报记者抓来喝咖啡", "effects": { "mediaSupport": -15, "boardSupport": 5, "tabloid": -1 }, "outcomeText": "记者被说服撤稿，但媒体圈开始流传你威胁记者的新闻……" },
+          { "id": "press", "text": "召开发布会：“是的，我们有一个孩子。”", "effects": { "mediaSupport": 10, "boardSupport": -10, "dressingRoom": -5 }, "outcomeText": "媒体盛赞你的诚实，但管理层脸都绿了。队员们面面相觑：“所以教练什么时候把孩子带来青训？”" }
         ]
       },
       {
@@ -181,39 +205,43 @@
         "title": "办公室恋情",
         "description": "你发现小报正在编撰你和某个队内核心球员的谣言，称你们正在搞办公室恋情。这让你大惊失色，因为你们真的在干这种事！你当然可以选择无视，但越来越多的人开始相信这则新闻，不少球迷要求彻查你的问题。你的决定是：",
         "condition": { "type": "decision_history", "value": "risk", "detail": "player" },
+        "revealAfterChoice": true,
         "options": [
-          { "text": "无视", "effects": { "tabloid": 1, "boardSupport": -5 } },
-          { "text": "把小报记者抓来喝咖啡", "effects": { "mediaSupport": -15, "boardSupport": 5, "tabloid": -1 } },
-          { "text": "召开发布会：“我[教练名字]今天就把话撂在这了，我绝对没有和任何人谈恋爱！”", "effects": { "boardSupport": 10, "dressingRoom": -15, "mediaSupport": -5 } }
+          { "id": "ignore", "text": "无视", "effects": { "tabloid": 1, "boardSupport": -5 }, "outcomeText": "狗仔已经蹲守在训练基地门口，管理层的信任度直线下降。" },
+          { "id": "coffee", "text": "把小报记者抓来喝咖啡", "effects": { "mediaSupport": -15, "boardSupport": 5, "tabloid": -1 }, "outcomeText": "记者删稿了，但你在媒体圈的名声已经臭了。至少管理层觉得你处理得当。" },
+          { "id": "press", "text": "召开发布会：“我[教练名字]今天就把话撂在这了，我绝对没有和任何人谈恋爱！”", "effects": { "boardSupport": 10, "dressingRoom": -15, "mediaSupport": -5 }, "outcomeText": "管理层松了口气，但那位球员当晚就发了条意味深长的动态……" }
         ]
       },
       {
         "id": "captain_breakup",
         "title": "队长分手风波",
         "description": "某次训练中，你发现队长和副队长面色不虞。几次盘问后，你才得知他们之前谈过隐秘的地下恋，现在分手了，而分手的原因竟是因为队长和死敌球队的队长暧昧！面对着沉默不语的二人，你的决定是…",
+        "revealAfterChoice": true,
         "options": [
-          { "text": "加入这场沉默", "effects": { "authority": -5 } },
-          { "text": "大发雷霆，训斥队长通敌，要求立刻分手", "effects": { "authority": 5, "dressingRoom": -10 } },
-          { "text": "当面与副队长调情，让队长目瞪口呆", "effects": { "dressingRoom": 5, "tabloid": 1 } }
+          { "id": "silent", "text": "加入这场沉默", "effects": { "authority": -5 }, "outcomeText": "诡异的沉默持续了五分钟，你的软弱让球员们开始窃窃私语——“连这种事都管不了……”" },
+          { "id": "rage", "text": "大发雷霆，训斥队长通敌，要求立刻分手", "effects": { "authority": 5, "dressingRoom": -10 }, "outcomeText": "你的铁腕让队长当场低头，但更衣室的气氛降至冰点，球员们开始分成两派站队。" },
+          { "id": "flirt", "text": "当面与副队长调情，让队长目瞪口呆", "effects": { "dressingRoom": 5, "tabloid": 1 }, "outcomeText": "你用荒谬的方式化解了危机，虽然代价是第二天小报头条变成了“三角恋情曝光”……" }
         ]
       },
       {
         "id": "shipping_rumors",
         "title": "嗑CP风波",
         "description": "你发现队员们聚在一起窃窃私语，于是你抓住其中一个，试图查明真相。三番五次逼问后，你得知队员原来是在嗑你和前任的cp，但你们已经分手很久了。你的决定是：",
+        "revealAfterChoice": true,
         "options": [
-          { "text": "警告他们不许嗑", "effects": { "dressingRoom": -10, "authority": 5 } },
-          { "text": "向他们痛斥你的前任有多负心，并沉痛地告诉他们不许再嗑了", "effects": { "tabloid": 1, "dressingRoom": 5 } },
-          { "text": "微微一笑：“其实我们已经复婚了。”", "effects": { "tabloid": 2, "dressingRoom": 10 } }
+          { "id": "warn", "text": "警告他们不许嗑", "effects": { "dressingRoom": -10, "authority": 5 }, "outcomeText": "你的怒吼让更衣室鸦雀无声。" },
+          { "id": "ex", "text": "向他们痛斥你的前任有多负心，并沉痛地告诉他们不许再嗑了", "effects": { "tabloid": 1, "dressingRoom": 5 }, "outcomeText": "队员们听完你的血泪控诉后纷纷表示理解并拥抱了你。但第二天，月亮报就出现了标题：主教练痛诉前任渣男史。" },
+          { "id": "remarry", "text": "微微一笑：“其实我们已经复婚了。”", "effects": { "tabloid": 2, "dressingRoom": 10 }, "outcomeText": "更衣室瞬间爆发出欢呼声。至于媒体的长枪短炮，你最好不要去想。" }
         ]
       },
       {
         "id": "el_clasico",
         "title": "国家德比观赛",
         "description": "一场国家德比即将打响。这会是一场绝佳的技战术水平比拼——应该会是。你想去看看，但又害怕去看之后会被转播镜头拍到：一定会有许多球迷责怪你不务正业！你的选择是：",
+        "revealAfterChoice": true,
         "options": [
-          { "text": "去看", "effects": { "tactics": 0.5, "mediaSupport": -10 } }, 
-          { "text": "不去看", "effects": {} }
+          { "id": "go", "text": "去看", "effects": { "tactics": 0.5, "mediaSupport": -10 }, "outcomeText": "你在看台上被拍到了。运气好的话，你学到了新战术；运气不好，第二天头条就是“主教练看球不务正业”。" },
+          { "id": "stay", "text": "不去看", "effects": {}, "outcomeText": "你克制住了好奇心，专心准备自己的比赛。平静的一天。" }
         ]
       },
       {
@@ -268,30 +296,33 @@
         "id": "cam_form_drop",
         "title": "中场状态断崖下滑",
         "description": "你队里的进攻型中场状态断崖式下滑，媒体纷纷报道。你忧心忡忡，找他谈话，他态度诚恳，承认是自己的家庭问题导致的状态下滑。你感觉到继续使用他会有中场失控的风险，但他平时训练状态良好。你决定：",
+        "revealAfterChoice": true,
         "options": [
-          { "text": "状态不好就别上了，能者居之", "effects": { "dressingRoom": -5, "authority": 5 } },
-          { "text": "认错态度挺好的，再给他点时间吧", "effects": { "tactics": -0.5 } },
-          { "text": "怒怼多嘴的媒体，安抚愤怒的球迷，但同时让该球员是否出现在首发名单成为开赛前永恒的话题", "effects": { "mediaSupport": -5, "authority": 5 } }
+          { "id": "bench", "text": "状态不好就别上了，能者居之", "effects": { "dressingRoom": -5, "authority": 5 }, "outcomeText": "你的冷酷让全队噤声。" },
+          { "id": "patience", "text": "认错态度挺好的，再给他点时间吧", "effects": { "tactics": -0.5 }, "outcomeText": "他感激涕零，但下一场比赛又丢了三个球权。你开始后悔自己的心软。" },
+          { "id": "press", "text": "怒怼多嘴的媒体，安抚愤怒的球迷，但同时让该球员是否出现在首发名单成为开赛前永恒的话题", "effects": { "mediaSupport": -5, "authority": 5 }, "outcomeText": "你在发布会上怒斥记者，全队士气大振。但每场比赛前记者都会问：“他今天上吗？”你烦不胜烦。" }
         ]
       },
       {
         "id": "striker_goal_drought",
         "title": "前锋进球荒",
         "description": "你队里的前锋进入了长达六个月的进球荒。这让你不得不怀疑他这个赛季的竞技水平。你找他谈话，但他态度强硬，坚持认为自己已经做到了最好。他是队内大牌球星，拥有大量粉丝基础，你无法撼动他，同时球迷纷纷认为是你的战术问题导致他的状态不佳。你的决定是：",
+        "revealAfterChoice": true,
         "options": [
-          { "text": "顺从球迷，在队内安排把球权多送给他", "effects": { "tactics": -1 } },
-          { "text": "人不行别怪路不平，让他首发但坚持战术", "effects": { "dressingRoom": -5, "tactics": -0.5 } },
-          { "text": "状态差还敢顶嘴？坐板凳去吧你", "effects": { "dressingRoom": -15 } }
+          { "id": "feed", "text": "顺从球迷，在队内安排把球权多送给他", "effects": { "tactics": -1 }, "outcomeText": "全队都在给他喂饼，但他还是射不进。" },
+          { "id": "tactics", "text": "人不行别怪路不平，让他首发但坚持战术", "effects": { "dressingRoom": -5, "tactics": -0.5 }, "outcomeText": "他依然进不了球，赛后采访暗示是你的战术问题。更衣室里有人开始附和。" },
+          { "id": "bench", "text": "状态差还敢顶嘴？坐板凳去吧你", "effects": { "dressingRoom": -15 }, "outcomeText": "他的粉丝在社交媒体上掀起了#[教练名字]下课运动，更衣室分裂成了支持派和反对派。" }
         ]
       },
       {
         "id": "captain_rival_romance",
         "title": "队长与死敌队长恋爱",
         "description": "你发现你队中的队长正在和死敌球队的队长谈恋爱！！你大发雷霆——这和你一直贯彻的理念完全违背。更气人的是，你的疯癫前任就是死敌球队的主教练。媒体普遍评论，这是由于你对疯癫前任的恨转移到了他的球队身上。你选择：",
+        "revealAfterChoice": true,
         "options": [
-          { "text": "强行拆散，不分手就滚！随媒体说去吧", "effects": { "mediaSupport": -5, "dressingRoom": -10, "authority": 10 } },
-          { "text": "忍气吞声", "effects": { "authority": -5 } },
-          { "text": "送上祝福，并让队长在下一次比赛前/比赛中使用美人计，扰乱对面军心", "effects": { "mediaSupport": 5, "tabloid": 1 } }
+          { "id": "break", "text": "强行拆散，不分手就滚！随媒体说去吧", "effects": { "mediaSupport": -5, "dressingRoom": -10, "authority": 10 }, "outcomeText": "队长哭着离开了训练场。媒体批评你“独裁”，但没人敢再质疑你的权威。" },
+          { "id": "endure", "text": "忍气吞声", "effects": { "authority": -5 }, "outcomeText": "你什么都没说，转身离开。身后传来队员们的窃窃私语：“教练连这个都管不了……”" },
+          { "id": "bless", "text": "送上祝福，并让队长在下一次比赛前/比赛中使用美人计，扰乱对面军心", "effects": { "mediaSupport": 5, "tabloid": 1 }, "outcomeText": "“去吧，让爱成为我们的武器。”" }
         ]
       }
     ],

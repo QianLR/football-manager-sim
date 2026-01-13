@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useGame } from './context/GameContext';
 import Dashboard from './components/Dashboard';
 import EventCard from './components/EventCard';
 import BuffPool from './components/BuffPool';
 import teamsData from './data/teams.json';
+import AchievementsModal from './components/AchievementsModal';
+import AchievementToast from './components/AchievementToast';
+import { ACHIEVEMENTS } from './data/achievements';
+import { readGlobalAchievements } from './data/achievementsStorage';
 
 function OnboardingOverlay({ step, totalSteps, onNext, onSkip, content }) {
   return (
@@ -42,6 +46,48 @@ function App() {
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
+  const [showMourinhoConfirm, setShowMourinhoConfirm] = useState(false);
+  const [teamInfoId, setTeamInfoId] = useState(null);
+  const [showAchievementsModal, setShowAchievementsModal] = useState(false);
+  const [achievementsModalTitle, setAchievementsModalTitle] = useState('成就');
+  const [achievementsModalUnlockedMap, setAchievementsModalUnlockedMap] = useState(null);
+
+  const globalAchievements = useMemo(() => {
+    return readGlobalAchievements();
+  }, [state.achievementsUnlocked]);
+
+  const globalUnlockedCount = useMemo(() => Object.keys(globalAchievements || {}).length, [globalAchievements]);
+  const globalRecentUnlockedIds = useMemo(() => {
+    const entries = Object.entries(globalAchievements || {});
+    entries.sort((a, b) => String(b[1]?.unlockedAt || '').localeCompare(String(a[1]?.unlockedAt || '')));
+    return entries.slice(0, 3).map(([id]) => id);
+  }, [globalAchievements]);
+
+  const hasUnreadAchievements = useMemo(() => {
+    const map = state.achievementsUnlocked || {};
+    return Object.keys(map).some(id => map[id] && map[id].seen === false);
+  }, [state.achievementsUnlocked]);
+
+  const currentToast = state.achievementToastQueue && state.achievementToastQueue.length > 0
+    ? state.achievementToastQueue[0]
+    : null;
+
+  useEffect(() => {
+    if (!currentToast) return;
+    const t = setTimeout(() => {
+      dispatch({ type: 'DEQUEUE_ACHIEVEMENT_TOAST' });
+    }, 1800);
+    return () => clearTimeout(t);
+  }, [currentToast?.id]);
+
+  const openAchievementsModal = ({ title, unlockedMap, markSeen }) => {
+    setAchievementsModalTitle(title || '成就');
+    setAchievementsModalUnlockedMap(unlockedMap || {});
+    setShowAchievementsModal(true);
+    if (markSeen) {
+      dispatch({ type: 'MARK_ALL_ACHIEVEMENTS_SEEN' });
+    }
+  };
 
   const readSave = (key) => {
     try {
@@ -71,19 +117,40 @@ function App() {
     '关注“状态池(BUFFS/DEBUFFS)”：它们会持续影响每月结算与事件。\n\n当你准备好了，就开始你的执教吧。'
   ];
 
-  const handleStartGame = () => {
+  const isMourinhoName = (name) => {
+    const n = (name || '').trim().toLowerCase();
+    return n === '穆里尼奥' || n === 'mourinho' || n === 'jose mourinho';
+  };
+
+  const isGerrardName = (name) => {
+    const n = (name || '').trim().toLowerCase();
+    return n === '杰拉德' || n === 'gerrard' || n === 'steven gerrard';
+  };
+
+  const handleStartGame = (confirmedMourinho = false) => {
     if (playerName && coachingPhilosophy && selectedTeam) {
+      const isMourinhoArsenal = isMourinhoName(playerName) && selectedTeam === 'arsenal';
+      const confirmed = Boolean(confirmedMourinho);
+      if (isMourinhoArsenal && !confirmed) {
+        setShowMourinhoConfirm(true);
+        return;
+      }
+
       dispatch({
         type: 'START_GAME',
         payload: {
           playerName,
           coachingPhilosophy,
-          teamId: selectedTeam
+          teamId: selectedTeam,
+          confirmMourinho: isMourinhoArsenal && confirmed
         }
       });
 
-      setOnboardingStep(0);
-      setShowOnboarding(true);
+      const shouldSkipOnboarding = isGerrardName(playerName) && selectedTeam === 'man_utd';
+      if (!shouldSkipOnboarding) {
+        setOnboardingStep(0);
+        setShowOnboarding(true);
+      }
     }
   };
 
@@ -94,10 +161,91 @@ function App() {
     const manual3 = readSave('gsm_save_manual_3');
     const hasAnySave = Boolean(autoSave || manual1 || manual2 || manual3);
 
+    const getSaveUnlocked = (save) => {
+      const map = save?.state?.achievementsUnlocked;
+      return map && typeof map === 'object' ? map : {};
+    };
+
     return (
       <div className="min-h-screen bg-[#e0e0e0] flex items-center justify-center p-2">
+        <AchievementToast toast={currentToast} />
         <div className="retro-box p-3 max-w-sm w-full">
-          <h1 className="text-xl font-bold text-center mb-3 text-black uppercase font-mono border-b-2 border-black pb-1">豪门教练模拟器 v1.0</h1>
+          {teamInfoId && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
+              <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-md w-full p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="font-bold text-sm font-mono">球队介绍</div>
+                  <button
+                    onClick={() => setTeamInfoId(null)}
+                    className="retro-btn text-xs py-1 px-2"
+                  >
+                    关闭
+                  </button>
+                </div>
+                <div className="text-xs font-mono text-black leading-relaxed whitespace-pre-wrap">
+                  {(teamsData.find(t => t.id === teamInfoId)?.name || '')}
+                  {'\n'}
+                  {(teamsData.find(t => t.id === teamInfoId)?.description || '')}
+                </div>
+              </div>
+            </div>
+          )}
+          {showMourinhoConfirm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
+              <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-sm w-full p-3">
+                <div className="font-bold text-sm font-mono mb-2">确认</div>
+                <div className="text-xs font-mono text-gray-800 leading-relaxed mb-3">
+                  你真的确定要用这个名字进入吗？
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setShowMourinhoConfirm(false)}
+                    className="retro-btn text-xs py-1 px-2"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowMourinhoConfirm(false);
+                      handleStartGame(true);
+                    }}
+                    className="retro-btn-primary text-xs py-1 px-2"
+                  >
+                    确定
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mb-3 border-2 border-black bg-white p-2">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="font-bold text-xs font-mono">成就</div>
+                <div className="text-[11px] text-gray-700 font-mono">已解锁 {globalUnlockedCount}/{ACHIEVEMENTS.length}</div>
+              </div>
+              <button
+                onClick={() => openAchievementsModal({ title: '成就（全局）', unlockedMap: globalAchievements, markSeen: false })}
+                className="retro-btn text-xs py-1 px-2"
+              >
+                查看全部
+              </button>
+            </div>
+
+            {globalUnlockedCount === 0 ? (
+              <div className="text-[11px] text-gray-500 font-mono mt-2">尚未解锁任何成就</div>
+            ) : (
+              <div className="text-[11px] text-gray-700 font-mono mt-2 leading-snug">
+                最近解锁：
+                {globalRecentUnlockedIds
+                  .map(id => ACHIEVEMENTS.find(a => a.id === id)?.title)
+                  .filter(Boolean)
+                  .join(' / ')}
+              </div>
+            )}
+          </div>
+
+          <h1 className="text-xl font-bold text-center mb-3 text-black uppercase font-mono border-b-2 border-black pb-1">豪门教练模拟器 v2.0</h1>
           
           <div className="mb-2">
             <label className="block text-black text-xs font-bold mb-1 font-mono">
@@ -140,8 +288,20 @@ function App() {
                     selectedTeam === team.id ? 'bg-black text-white' : 'bg-white hover:bg-gray-200'
                   }`}
                 >
-                  <div className="font-bold text-sm">{team.name}</div>
-                  <div className={`text-[11px] leading-snug ${selectedTeam === team.id ? 'text-gray-200' : 'text-gray-600'}`}>{team.description}</div>
+                  <div className="flex items-center gap-1">
+                    <div className="font-bold text-sm">{team.name}</div>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setTeamInfoId(team.id);
+                      }}
+                      className={`inline-flex items-center justify-center w-4 h-4 border-2 border-black rounded-full text-[10px] font-bold bg-white hover:bg-gray-200 ${selectedTeam === team.id ? 'text-black' : 'text-black'}`}
+                      aria-label="查看球队介绍"
+                    >
+                      ?
+                    </button>
+                  </div>
                   <div className={`text-[11px] font-semibold mt-0.5 ${selectedTeam === team.id ? 'text-red-300' : 'text-red-600'}`}>难度: {team.difficulty}</div>
                 </div>
               ))}
@@ -165,7 +325,19 @@ function App() {
 
               {autoSave && (
                 <div className="border-2 border-black p-2 mb-2">
-                  <div className="text-xs font-bold font-mono">自动存档（最新）</div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-bold font-mono">自动存档（最新）</div>
+                    <button
+                      onClick={() => openAchievementsModal({
+                        title: '成就预览（自动存档）',
+                        unlockedMap: getSaveUnlocked(autoSave),
+                        markSeen: false
+                      })}
+                      className="retro-btn text-[11px] py-0 px-2"
+                    >
+                      🏆
+                    </button>
+                  </div>
                   <div className="text-[11px] text-gray-700 font-mono leading-snug">
                     {autoSave.meta?.teamName} | 教练：{autoSave.meta?.playerName}
                     <br />
@@ -184,7 +356,21 @@ function App() {
 
               {[{ slot: 1, data: manual1 }, { slot: 2, data: manual2 }, { slot: 3, data: manual3 }].map(({ slot, data }) => (
                 <div key={slot} className="border-2 border-black p-2 mb-2">
-                  <div className="text-xs font-bold font-mono">手动存档 {slot}</div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-bold font-mono">手动存档 {slot}</div>
+                    {data ? (
+                      <button
+                        onClick={() => openAchievementsModal({
+                          title: `成就预览（手动存档${slot}）`,
+                          unlockedMap: getSaveUnlocked(data),
+                          markSeen: false
+                        })}
+                        className="retro-btn text-[11px] py-0 px-2"
+                      >
+                        🏆
+                      </button>
+                    ) : null}
+                  </div>
                   {data ? (
                     <>
                       <div className="text-[11px] text-gray-700 font-mono leading-snug">
@@ -210,7 +396,7 @@ function App() {
           )}
 
           <button
-            onClick={handleStartGame}
+            onClick={() => handleStartGame(false)}
             disabled={!playerName || !coachingPhilosophy || !selectedTeam}
             className={`w-full font-bold py-2 px-3 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all font-mono text-base ${
               playerName && coachingPhilosophy && selectedTeam
@@ -220,6 +406,13 @@ function App() {
           >
             开始执教
           </button>
+
+          <AchievementsModal
+            open={showAchievementsModal}
+            title={achievementsModalTitle}
+            unlockedMap={achievementsModalUnlockedMap}
+            onClose={() => setShowAchievementsModal(false)}
+          />
         </div>
       </div>
     );
@@ -241,11 +434,13 @@ function App() {
     };
 
     const shouldShowArtetaRescueButton =
+      !state.gameoverOverrideText &&
       !state.artetaEasterEggTriggered &&
       isArtetaName(state.playerName) &&
       state.currentTeam?.id === 'arsenal';
 
     const shouldShowLetterButton =
+      !state.gameoverOverrideText &&
       !state.easterEggTriggered &&
       isAlonsoName(state.playerName) &&
       state.currentTeam &&
@@ -253,7 +448,9 @@ function App() {
       state.currentTeam.id !== 'liverpool';
 
     let reasonText = "";
-    if (shouldShowArtetaRescueButton) {
+    if (state.gameoverOverrideText) {
+        reasonText = state.gameoverOverrideText;
+    } else if (shouldShowArtetaRescueButton) {
         if (state.stats.dressingRoom <= 0) {
             reasonText = '你的更衣室彻底崩溃，你的下课事宜已经被敲定。';
         } else {
@@ -269,6 +466,7 @@ function App() {
 
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-3 text-black font-mono">
+        <AchievementToast toast={currentToast} />
         <div className="text-center max-w-xl border-4 border-black p-4 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
           <h1 className="text-2xl font-bold mb-3 uppercase tracking-tighter">下课</h1>
           <p className="text-sm mb-4 whitespace-pre-wrap leading-relaxed">{reasonText}</p>
@@ -299,22 +497,31 @@ function App() {
     );
   }
   
-  if (state.gameState === 'victory') {
+  if (state.gameState === 'double_crown') {
       if (showOnboarding) setShowOnboarding(false);
-      const winningSeasonYear = Math.max(1, (state.year || 1) - 1);
+      const teamName = state.currentTeam?.name || '你的俱乐部';
+      const text = `恭喜你带领${teamName}夺得双冠王！目前只有0.1%的主教练能做到这一成就！\n游戏目前已达2.0版本，未来将会开放更多优化，包括如何定制教练最爱的球员，如何管理球员与球员之间的关系，还包括更多其他豪门球队。\n如果你在游戏的过程中遇到bug，欢迎向作者邮箱Rowaninc@163.com反馈！感谢你的游玩，我们3.0版本再见👋🏻\n\n如果你想继续游戏，请点击：（继续执教）\n如果你想开始一个新游戏，请点击：（重新开始）`;
+
       return (
         <div className="min-h-screen bg-yellow-500 flex items-center justify-center p-3 text-black font-mono">
+          <AchievementToast toast={currentToast} />
           <div className="text-center max-w-xl border-4 border-black p-4 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-            <h1 className="text-4xl font-bold mb-3 uppercase tracking-tighter">冠军！</h1>
-            <p className="text-sm mb-4 whitespace-pre-wrap leading-relaxed">
-                恭喜你带领{state.currentTeam.name}夺得冠军！作为豪门主教练，能在第{winningSeasonYear}个赛季就拿到冠军是一件非常不容易的事！本游戏目前还在1.0版本，未来将会开放更多优化，包括如何管理杯赛和联赛的分配，如何与更多人调情（大雾）。如果你在游戏的过程中遇到bug，欢迎向作者邮箱Rowaninc@163.com反馈！感谢你的游玩，我们2.0版本再见👋🏻
-            </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="bg-yellow-500 text-black px-5 py-2 text-lg font-bold hover:bg-yellow-400 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
-            >
-              再来一局
-            </button>
+            <h1 className="text-3xl font-bold mb-3 uppercase tracking-tighter">双冠王！</h1>
+            <p className="text-sm mb-4 whitespace-pre-wrap leading-relaxed">{text}</p>
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={() => dispatch({ type: 'SET_GAME_STATE', payload: { gameState: 'playing' } })}
+                className="bg-yellow-500 text-black px-4 py-2 text-sm font-bold hover:bg-yellow-400 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+              >
+                继续执教
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="bg-black text-white px-4 py-2 text-sm font-bold hover:bg-gray-800 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+              >
+                重新开始
+              </button>
+            </div>
           </div>
         </div>
       );
@@ -322,6 +529,20 @@ function App() {
 
   return (
     <div className="h-screen bg-[#e0e0e0] p-2 font-mono overflow-hidden">
+      <AchievementToast toast={currentToast} />
+
+      {state.gameState === 'playing' && (
+        <button
+          onClick={() => openAchievementsModal({ title: '成就（本存档）', unlockedMap: state.achievementsUnlocked, markSeen: true })}
+          className="fixed top-2 right-2 z-50 retro-btn text-xs py-1 px-2"
+        >
+          <span className="inline-flex items-center gap-1">
+            <span>🏆</span>
+            {hasUnreadAchievements && <span className="inline-block w-2 h-2 bg-red-600 border border-black" />}
+          </span>
+        </button>
+      )}
+
       <div className="max-w-6xl w-full h-full mx-auto flex flex-col gap-2">
         <div className="space-y-2 overflow-auto">
           <Dashboard />
@@ -331,6 +552,13 @@ function App() {
           <EventCard />
         </div>
       </div>
+
+      <AchievementsModal
+        open={showAchievementsModal && state.gameState !== 'start'}
+        title={achievementsModalTitle}
+        unlockedMap={achievementsModalUnlockedMap}
+        onClose={() => setShowAchievementsModal(false)}
+      />
 
       {showOnboarding && state.gameState === 'playing' && (
         <OnboardingOverlay

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useGame } from '../context/GameContext';
 
 const StatBar = ({ label, value, max = 100, color = 'blue', showBar = true }) => {
@@ -24,20 +24,51 @@ const StatBar = ({ label, value, max = 100, color = 'blue', showBar = true }) =>
 
 const Dashboard = () => {
   const { state, dispatch } = useGame();
-  const { stats, currentTeam, month, quarter, year, tabloidCount, playerName, estimatedRanking } = state;
+  const { stats, currentTeam, month, quarter, year, tabloidCount, playerName, estimatedRanking, specialMechanicState } = state;
+
+  const [infoKey, setInfoKey] = useState(null);
 
   if (!currentTeam) return null;
+
+  const isRoofClosed = currentTeam.id === 'real_madrid' && specialMechanicState?.roofClosed;
 
   const expectationRanking = currentTeam.expectations?.ranking;
   const expectationText = expectationRanking === 1 ? '第1名' : `前${expectationRanking}名`;
 
   return (
     <div className="retro-box p-2">
+      {infoKey && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
+          <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-md w-full p-3">
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-bold text-sm font-mono">说明</div>
+              <button
+                onClick={() => setInfoKey(null)}
+                className="retro-btn text-xs py-1 px-2"
+              >
+                关闭
+              </button>
+            </div>
+            <div className="text-xs font-mono leading-relaxed text-gray-800">
+              {infoKey === 'authority' && (
+                <div>当话语权为0时，所有“降低话语权”的效果将改为“降低管理层支持”。</div>
+              )}
+              {infoKey === 'mediaSupport' && (
+                <div>当媒体支持为0时，所有“降低媒体支持”的效果将改为“降低更衣室稳定”。</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center mb-2 border-b-2 border-black pb-1">
         <h2 className="text-base font-bold font-mono uppercase">{currentTeam.name} | 教练：{playerName}</h2>
         <div className="text-xs font-mono text-right">
           <div>第{year}年 第{quarter}季度 第{month}个月</div>
           <div>期望: {expectationText}</div>
+          {isRoofClosed && (
+            <div className="text-[11px] text-gray-800 font-mono">🏟️顶棚关闭</div>
+          )}
         </div>
       </div>
 
@@ -66,8 +97,36 @@ const Dashboard = () => {
       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
         <StatBar label="管理层支持" value={stats.boardSupport} color="blue" />
         <StatBar label="更衣室稳定" value={stats.dressingRoom} color="blue" />
-        <StatBar label="媒体支持" value={stats.mediaSupport} color="blue" />
-        <StatBar label="话语权" value={stats.authority} color="blue" />
+        <StatBar
+          label={
+            <span className="inline-flex items-center gap-1">
+              <span className="font-bold">媒体支持</span>
+              <button
+                onClick={() => setInfoKey('mediaSupport')}
+                className="retro-btn text-[10px] py-0 px-1"
+              >
+                ?
+              </button>
+            </span>
+          }
+          value={stats.mediaSupport}
+          color="blue"
+        />
+        <StatBar
+          label={
+            <span className="inline-flex items-center gap-1">
+              <span className="font-bold">话语权</span>
+              <button
+                onClick={() => setInfoKey('authority')}
+                className="retro-btn text-[10px] py-0 px-1"
+              >
+                ?
+              </button>
+            </span>
+          }
+          value={stats.authority}
+          color="blue"
+        />
         <StatBar label="球队资金" value={stats.funds} max={null} showBar={false} />
         <StatBar label="技战术水平" value={stats.tactics} max={10} color="blue" />
       </div>
@@ -87,6 +146,21 @@ const Dashboard = () => {
                   style={{ width: `${(tabloidCount / 3) * 100}%` }}
                 ></div>
             </div>
+
+            {year >= 2 && (
+              <div className="mt-1">
+                <div className="flex justify-between items-center mb-0.5">
+                    <span className="font-bold text-[11px] uppercase">伤病风险</span>
+                    <span className="font-bold text-[11px]">{stats.injuryRisk || 0}/5</span>
+                </div>
+                <div className="retro-progress-container">
+                    <div
+                      className="retro-progress-bar bg-orange-500"
+                      style={{ width: `${Math.min(100, Math.max(0, ((stats.injuryRisk || 0) / 5) * 100))}%` }}
+                    ></div>
+                </div>
+              </div>
+            )}
         </div>
       </div>
     </div>
