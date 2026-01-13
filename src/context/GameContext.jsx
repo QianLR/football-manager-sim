@@ -1276,6 +1276,7 @@ function gameReducer(state, action) {
         let nextRandomEventsThisYear = [...(state.randomEventsThisYear || [])];
         let nextLastRandomEventId = state.lastRandomEventId;
         let pendingGameState = null;
+        let forcedGameStateAfterMonth = null;
         let shouldAutoSave = false;
         let nextEstimatedRanking = state.estimatedRanking;
         let nextPendingSeasonReset = state.pendingSeasonReset;
@@ -1811,7 +1812,7 @@ function gameReducer(state, action) {
 
                     eventToTrigger = null;
                     queuedEvent = null;
-                    pendingGameState = 'double_crown';
+                    forcedGameStateAfterMonth = 'double_crown';
                 } else {
                     eventToTrigger = seasonSettlementEvent;
                     queuedEvent = null;
@@ -1839,6 +1840,11 @@ function gameReducer(state, action) {
 
         if (statsAfterMonth.boardSupport <= 0 || statsAfterMonth.dressingRoom <= 0) {
             nextGameStateAfterMonth = 'gameover';
+        }
+
+        if (forcedGameStateAfterMonth) {
+            nextGameStateAfterMonth = forcedGameStateAfterMonth;
+            pendingGameState = null;
         }
 
         let stateAfterMonth = {

@@ -500,7 +500,7 @@ function App() {
   if (state.gameState === 'double_crown') {
       if (showOnboarding) setShowOnboarding(false);
       const teamName = state.currentTeam?.name || '你的俱乐部';
-      const text = `恭喜你带领${teamName}夺得双冠王！目前只有0.1%的主教练能做到这一成就！\n游戏目前已达2.0版本，未来将会开放更多优化，包括如何定制教练最爱的球员，如何管理球员与球员之间的关系，还包括更多其他豪门球队。\n如果你在游戏的过程中遇到bug，欢迎向作者邮箱Rowaninc@163.com反馈！感谢你的游玩，我们3.0版本再见👋🏻\n\n如果你想继续游戏，请点击：（继续执教）\n如果你想开始一个新游戏，请点击：（重新开始）`;
+      const text = `恭喜你带领${teamName}夺得双冠王！目前只有0.1%的主教练能做到这一成就！游戏目前已达2.0版本，未来将会开放更多优化，包括如何定制教练最爱的球员，如何管理球员与球员之间的关系，还包括更多其他豪门球队。如果你在游戏的过程中遇到bug，欢迎向作者邮箱Rowaninc@163.com反馈！感谢你的游玩，我们3.0版本再见👋🏻\n\n如果你想继续游戏，请点击：（继续执教）\n如果你想开始一个新游戏，请点击：（重新开始）`;
 
       return (
         <div className="min-h-screen bg-yellow-500 flex items-center justify-center p-3 text-black font-mono">

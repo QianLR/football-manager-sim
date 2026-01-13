@@ -38,7 +38,7 @@ const EventCard = () => {
       parts.push('媒体支持变为100');
     }
 
-    if (effects.chance_tabloid) {
+    if (effects.chance_tabloid && !effects.tabloid) {
       parts.push(labels.chance_tabloid);
     }
 
@@ -238,28 +238,49 @@ const EventCard = () => {
                                         if (specialMechanicState.roofChangedThisSeason?.close && opt.id === 'close') return null;
                                     }
 
+                                let optEffects = opt.effects;
+                                if (
+                                  decision.id === 'flirtation' &&
+                                  state.year >= 2 &&
+                                  (opt.id === 'rival_coach' || opt.id === 'foreign_coach')
+                                ) {
+                                  optEffects = { ...(optEffects || {}), tabloid: 1, tactics: 0.5 };
+                                  delete optEffects.chance_tabloid;
+                                }
+
                                 let optText = replaceDynamicText(opt.text);
 
-                                    const requiredAuthority = decision.condition && decision.condition.authority;
+                                const baseRequiredAuthority = decision.condition && decision.condition.authority;
+                                const costsFunds = optEffects && optEffects.funds < 0;
+                                const requiredAuthority = costsFunds
+                                  ? Math.max(baseRequiredAuthority || 0, 70)
+                                  : baseRequiredAuthority;
+                                const lowAuthority = requiredAuthority && state.stats.authority < requiredAuthority;
+                                const insufficientFunds = costsFunds && state.stats.funds < Math.abs(optEffects.funds);
+                                const limitReached = remainingPoints <= 0;
+                                const disabled = limitReached || lowAuthority || insufficientFunds;
 
-                                    const costsFunds = opt.effects && opt.effects.funds < 0;
-                                    const lowAuthority = requiredAuthority && state.stats.authority < requiredAuthority;
-                                    const insufficientFunds = costsFunds && state.stats.funds < Math.abs(opt.effects.funds);
-                                    const limitReached = remainingPoints <= 0;
-                                    const disabled = limitReached || lowAuthority || insufficientFunds;
-                                    
-                                    return (
-                                        <button
-                                            key={opt.id}
-                                            onClick={() => handleDecisionClick(decision, opt)}
-                                            disabled={disabled}
-                                            className={`retro-btn text-xs flex justify-between items-center py-1 px-2 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                        >
-                                            <span className="font-bold">{optText}</span>
-                                            <span className="text-[8px] text-gray-500 font-mono">{formatEffects(opt.effects)}</span>
-                                        </button>
-                                    );
-                                    })}
+                                const disabledHint = lowAuthority && insufficientFunds
+                                  ? `需话语权≥${requiredAuthority}，且资金不足`
+                                  : lowAuthority
+                                    ? `需话语权≥${requiredAuthority}`
+                                    : insufficientFunds
+                                      ? '资金不足'
+                                      : '';
+                                const rightText = disabledHint || formatEffects(optEffects);
+                                
+                                return (
+                                    <button
+                                        key={opt.id}
+                                        onClick={() => handleDecisionClick(decision, { ...opt, effects: optEffects })}
+                                        disabled={disabled}
+                                        className={`retro-btn text-xs flex justify-between items-center py-1 px-2 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                        <span className="font-bold">{optText}</span>
+                                        <span className="text-[8px] text-gray-500 font-mono">{rightText}</span>
+                                    </button>
+                                );
+                            })}
                                 </div>
                             )}
                             {!isExpanded && (
@@ -275,15 +296,20 @@ const EventCard = () => {
                             (() => {
                                 const requiredAuthority = decision.condition && decision.condition.authority;
                                 const costsFunds = decision.effects && decision.effects.funds < 0;
-                                const lowAuthority = requiredAuthority && state.stats.authority < requiredAuthority;
+                                const effectiveRequiredAuthority = costsFunds
+                                  ? Math.max(requiredAuthority || 0, 70)
+                                  : requiredAuthority;
+                                const lowAuthority = effectiveRequiredAuthority && state.stats.authority < effectiveRequiredAuthority;
                                 const insufficientFunds = costsFunds && state.stats.funds < Math.abs(decision.effects.funds);
                                 const limitReached = remainingPoints <= 0;
                                 const disabled = limitReached || lowAuthority || insufficientFunds;
-                                const buttonText = lowAuthority
-                                  ? `执行 (需话语权≥${requiredAuthority})`
-                                  : insufficientFunds
-                                    ? '执行 (资金不足)'
-                                    : '执行';
+                                const buttonText = lowAuthority && insufficientFunds
+                                  ? `执行 (需话语权≥${effectiveRequiredAuthority}，资金不足)`
+                                  : lowAuthority
+                                    ? `执行 (需话语权≥${effectiveRequiredAuthority})`
+                                    : insufficientFunds
+                                      ? '执行 (资金不足)'
+                                      : '执行';
                                 
                                 return (
                                     <button
