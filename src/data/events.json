@@ -327,6 +327,98 @@
           { "id": "endure", "text": "忍气吞声", "effects": { "authority": -5 }, "outcomeText": "你什么都没说，转身离开。身后传来队员们的窃窃私语：“教练连这个都管不了……”" },
           { "id": "bless", "text": "送上祝福，并让队长在下一次比赛前/比赛中使用美人计，扰乱对面军心", "effects": { "mediaSupport": 5, "tabloid": 1 }, "outcomeText": "“去吧，让爱成为我们的武器。”" }
         ]
+      },
+      {
+        "id": "curry_chicken_vomit",
+        "title": "咖喱鸡事故",
+        "description": "在一场普通的比赛前，你吃了一份咖喱鸡。站在场边指挥的时候，你突然觉得胃里翻江倒海，一时间没忍住，吐了出来。好巧不巧，正好在你吐出来的前一秒，你的前锋踢丢了一个绝佳机会。媒体们议论纷纷，都猜测你是被队伍的表现恶心吐了。管理层要求你必须召开一场发布会来解释。你的决定是：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "admit", "text": "承认自己是吃咖喱鸡吃吐的", "effects": { "mediaSupport": -5, "boardSupport": -5 }, "outcomeText": "你的坦诚让全场陷入尴尬的沉默，媒体和管理层都觉得你在拿他们当傻子。" },
+          { "id": "blame_team", "text": "把锅推给球队，说是队伍的表现把你恶心吐了", "effects": { "dressingRoom": -10 }, "outcomeText": "\"这表现确实让人作呕。\"你的话让球员们脸色铁青，更衣室的气氛降到了冰点。" },
+          { "id": "blame_striker", "text": "把锅推给前锋，说是前锋的射术把你恶心吐了", "effects": { "dressingRoom": -5, "mediaSupport": -10 }, "outcomeText": "媒体纷纷批评你“过于苛刻且不专业”，更衣室也对你颇有微词。" },
+          { "id": "pregnant", "text": "沉思片刻，叹气，抬头：“其实我怀孕了。”", "effects": { "mediaSupport": 5, "boardSupport": -15 }, "outcomeText": "发布会现场陷入三秒钟的死寂，随后媒体疯狂按快门。管理层的脸也绿了。" }
+        ]
+      },
+      {
+        "id": "striker_burger",
+        "title": "前锋的豪华汉堡",
+        "description": "一次偶然的机会，你加完班离开基地，发现球队前锋竟然违背营养师嘱咐，偷偷买汉堡吃！你躲在暗处看了一会儿，发现他不仅给自己加了双倍芝士，还给自己加了焦糖洋葱、双层烤牛排、沙拉酱、烤肉酱、煎蛋、炸鸡排、红烩肉酱、起司碎、白芝麻、旋风薯条，最后还打了一杯可乐（无糖）。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "ignore", "text": "装没看见", "effects": { "tactics": -0.5 }, "outcomeText": "你转身离开，假装什么都没发生。但第二天比赛时，你的前锋跑了三步就开始喘气..." },
+          { "id": "confiscate", "text": "当场抓住他质问，并没收汉堡", "effects": { "dressingRoom": -10 }, "outcomeText": "\"你在干什么！\"你的怒吼让前锋手里的汉堡和双倍芝士、焦糖洋葱、双层烤牛排、沙拉酱、烤肉酱、煎蛋、炸鸡排、红烩肉酱、起司碎、白芝麻、旋风薯条一起掉在地上。" },
+          { "id": "sarcasm", "text": "当场抓住他，讽刺他掩耳盗铃，并把无糖可乐泼他脸上", "effects": { "dressingRoom": -15, "tabloid": 1, "authority": 10 }, "outcomeText": "十分钟后，月亮报的\"暴君教练深夜施暴!\"报道就传满了整个更衣室。" },
+          { "id": "warn_stalls", "text": "先不说什么，但在前锋离开后告诫每一个汉堡摊以后不许卖汉堡给他", "effects": { "authority": 5, "tabloid": 1 }, "outcomeText": "一周后，前锋崩溃地发现全城汉堡店都拒绝为他服务。" }
+        ]
+      },
+      {
+        "id": "intl_break_striker_ldr",
+        "title": "国际比赛日后：前锋异地恋",
+        "description": "国际比赛日后，你发现队里的前锋总在走神。一番逼问之下，他终于承认自己和国家队的一个队友恋爱了；他们不在同一个联赛，因此每逢假期，他都要坐飞机回去看对象。你警告他不许在比赛时走神，他连连答应，态度很好，但还是踢飞了三个单刀。球迷们已经开始发出嘘声。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "break", "text": "立刻把他换下场，并棒打鸳鸯", "effects": { "dressingRoom": -5, "authority": 5 }, "outcomeText": "全队噤若寒蝉，但没人再敢质疑你的权威。" },
+          { "id": "bench", "text": "立刻把他换下场，但不说什么", "effects": { "tactics": -0.5 }, "outcomeText": "你默默举起换人牌。他低着头走下场，眼神空洞。替补上来的球员也没好到哪去。" },
+          { "id": "fans_threat", "text": "通知球迷群体立刻把他对象的球衣挂出来，威胁他再不进球就烧球衣给他看", "effects": { "dressingRoom": -15, "mediaSupport": -5, "tactics": 0.5 }, "outcomeText": "看台上挂起了好几件你精心准备的球衣，从国家队到俱乐部甚至还有青训时期一应俱全，旁边还有打火机。前锋吓得瞬间清醒，下半场梅开二度，但全队都觉得你疯了。" }
+        ]
+      },
+      {
+        "id": "intl_break_mid_silent",
+        "title": "国际比赛日后：中场不传球",
+        "description": "国际比赛日后，你发现队里的中场变得很沉默。一番逼问之下，他终于承认自己和国家队的一个队友恋爱了；这个队友是世界顶级的前锋，而你队里的前锋还有些菜。因此，他不太想给队里的前锋传球。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "rage", "text": "大发雷霆，痛斥他一顿，让他不传球就滚蛋", "effects": { "authority": 5, "dressingRoom": -10 }, "outcomeText": "\"你是来踢球的还是来谈恋爱的?!\"你的怒吼让他低下头。前锋拿到球了，但更衣室也分裂了。" },
+          { "id": "accept", "text": "不传就不传吧，传了大概率也不进", "effects": { "tactics": -0.5 }, "outcomeText": "你叹了口气，放弃了挣扎。前锋在场上越来越孤立，战术体系开始崩塌。" },
+          { "id": "promise", "text": "向他保证，只要这赛季拿冠军，就会把他的对象买过来", "effects": { "tactics": 0.5, "dressingRoom": -15 }, "outcomeText": "\"过人成功！[俱乐部名字]的十号正在疯狂地过人！边路一条龙！晃倒一个后卫！进到禁区了！穿裆啦！晃过门将！一脚漂亮的打门！GOOOOOOOOOOOAL！！！完全不需要队友啊！！\"" }
+        ]
+      },
+      {
+        "id": "intl_break_gk_angry",
+        "title": "国际比赛日后：门将暴躁",
+        "description": "国际比赛日后，你发现队里的门将总是很暴躁。一番逼问之下，他终于承认自己和国家队的后卫恋爱了；他国家队的后卫线你是知道的，无论哪个挑出来都很可靠。也许这就是他终于无法忍受你们队的后卫的原因。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "angry", "text": "让他暴躁去吧，我也很暴躁", "effects": { "dressingRoom": -5 }, "outcomeText": "\"那就一起暴躁吧。\"你摆摆手。门将继续骂骂咧咧，后卫们面面相觑，士气低落。" },
+          { "id": "threat", "text": "你不能暴躁，你再暴躁我就拆散你们", "effects": { "dressingRoom": 5, "tactics": -0.5 }, "outcomeText": "你的威胁让门将瞬间闭嘴。更衣室安静了。" },
+          { "id": "smile", "text": "微微一笑：“一个好门将怎么能只谈一个后卫呢？立刻把咱们队里的也谈上。”", "effects": { "tactics": 0.5, "dressingRoom": -15 }, "outcomeText": "你的话让门将目瞪口呆。他照做了，后防配合确实变好了，但更衣室彻底乱成一锅粥。" }
+        ]
+      },
+      {
+        "id": "fullback_breakup",
+        "title": "边后卫失恋",
+        "description": "你队里的边后卫最近神色恹恹。有好几次场上梦游，险些酿成大错。你找他谈话，才得知他和他青梅竹马的对象分手了，正伤心不已。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "introduce", "text": "拜拜就拜拜，下一个更乖。给他介绍新对象", "effects": { "dressingRoom": 5, "tabloid": 1 }, "outcomeText": "你给他介绍了队友，两人迅速热恋。更衣室充满了恋爱的酸臭味。" },
+          { "id": "teach", "text": "用你和你七个前任的经验教导他如何把对象追回来", "effects": { "tactics": -0.5, "authority": 5 }, "outcomeText": "他感激涕零地向你道谢，但从此每天缠着你咨询进度，训练时间都被占用了。" },
+          { "id": "comfort", "text": "苦口婆心地开导他", "effects": { "tactics": -0.5 }, "outcomeText": "你发现对方是个超绝恋爱脑，不仅没能开导成功，还浪费了你足足8个小时！！你越想越气，恨不得把他揍一顿，但失去的时间可无法弥补了。" }
+        ]
+      },
+      {
+        "id": "transfer_water_goods",
+        "title": "引援闹剧：水货落地",
+        "description": "你指出队里需要引援。对于引援谁，CEO和总监爆发了激烈的争吵，吵了三天三夜，问了十个球探，确定了四个人选。你一看，发现全都是大水货，脾气还很差。但管理层还是敲板买下了其中一个。媒体都在说你们得到了补强，说你下赛季带着这样的战舰必须夺冠，而你只能有苦难言。",
+        "effects": { "funds": -5, "dressingRoom": -5 }
+      },
+      {
+        "id": "finance_chain_reaction",
+        "title": "财务内斗：队医辞职",
+        "description": "你指出队里资金不足，不够引援。财务总监大发雷霆，指责是体育总监花了太多钱；体育总监指责是营养师买了太多昂贵的食材；营养师大呼冤枉，指责是伤病管理有问题；队医冷冷一笑，辞职离开。你无可奈何。",
+        "effects": { "injuryRisk": 1 }
+      },
+      {
+        "id": "transfer_endless_quarrel",
+        "title": "引援争吵：后卫被忽视",
+        "description": "你指出队里需要引援。对于到底是引援前锋还是引援中场，每个人都在吵架，吵了十天十夜也没有停息。没有人停下来听你说你只是想要个后卫。",
+        "effects": { "tactics": -0.5 }
+      },
+      {
+        "id": "transfer_ignored",
+        "title": "引援建议被无视",
+        "description": "你指出队里需要引援。你当然指出了这一点，但所有人装作听不见。",
+        "effects": { "authority": -5 }
       }
     ],
     "teamSpecific": {
