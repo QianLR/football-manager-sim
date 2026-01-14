@@ -161,6 +161,21 @@ function App() {
     const manual3 = readSave('gsm_save_manual_3');
     const hasAnySave = Boolean(autoSave || manual1 || manual2 || manual3);
 
+    const difficultyOrder = ['Easy', 'Normal', 'Hard', 'Hell'];
+    const visibleTeams = teamsData.filter(team => !team.hidden);
+    const groupedTeams = difficultyOrder
+      .map(difficulty => ({
+        difficulty,
+        teams: visibleTeams.filter(t => t.difficulty === difficulty)
+      }))
+      .filter(group => group.teams.length > 0);
+    const otherTeams = visibleTeams.filter(t => !difficultyOrder.includes(t.difficulty));
+
+    const handleSelectTeam = (teamId) => {
+      setSelectedTeam(teamId);
+      setTeamInfoId(teamId);
+    };
+
     const getSaveUnlocked = (save) => {
       const map = save?.state?.achievementsUnlocked;
       return map && typeof map === 'object' ? map : {};
@@ -280,31 +295,70 @@ function App() {
               选择球队
             </label>
             <div className="space-y-2">
-              {teamsData.filter(team => !team.hidden).map(team => (
-                <div
-                  key={team.id}
-                  onClick={() => setSelectedTeam(team.id)}
-                  className={`p-2 border-2 border-black cursor-pointer transition-all font-mono ${
-                    selectedTeam === team.id ? 'bg-black text-white' : 'bg-white hover:bg-gray-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-1">
-                    <div className="font-bold text-sm">{team.name}</div>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setTeamInfoId(team.id);
-                      }}
-                      className={`inline-flex items-center justify-center w-4 h-4 border-2 border-black rounded-full text-[10px] font-bold bg-white hover:bg-gray-200 ${selectedTeam === team.id ? 'text-black' : 'text-black'}`}
-                      aria-label="查看球队介绍"
-                    >
-                      ?
-                    </button>
+              {groupedTeams.map(group => (
+                <div key={group.difficulty} className="border-2 border-black bg-white p-2">
+                  <div className="font-bold text-xs font-mono">{group.difficulty}</div>
+                  <div className="mt-2 space-y-2">
+                    {group.teams.map(team => (
+                      <div
+                        key={team.id}
+                        onClick={() => handleSelectTeam(team.id)}
+                        className={`p-2 border-2 border-black cursor-pointer transition-all font-mono ${
+                          selectedTeam === team.id ? 'bg-black text-white' : 'bg-white hover:bg-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1">
+                          <div className="font-bold text-sm">{team.name}</div>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setTeamInfoId(team.id);
+                            }}
+                            className={`inline-flex items-center justify-center w-4 h-4 border-2 border-black rounded-full text-[10px] font-bold bg-white hover:bg-gray-200 ${selectedTeam === team.id ? 'text-black' : 'text-black'}`}
+                            aria-label="查看球队介绍"
+                          >
+                            ?
+                          </button>
+                        </div>
+                        <div className={`text-[11px] font-semibold mt-0.5 ${selectedTeam === team.id ? 'text-red-300' : 'text-red-600'}`}>难度: {team.difficulty}</div>
+                      </div>
+                    ))}
                   </div>
-                  <div className={`text-[11px] font-semibold mt-0.5 ${selectedTeam === team.id ? 'text-red-300' : 'text-red-600'}`}>难度: {team.difficulty}</div>
                 </div>
               ))}
+              {otherTeams.length > 0 && (
+                <div className="border-2 border-black bg-white p-2">
+                  <div className="font-bold text-xs font-mono">其他</div>
+                  <div className="mt-2 space-y-2">
+                    {otherTeams.map(team => (
+                      <div
+                        key={team.id}
+                        onClick={() => handleSelectTeam(team.id)}
+                        className={`p-2 border-2 border-black cursor-pointer transition-all font-mono ${
+                          selectedTeam === team.id ? 'bg-black text-white' : 'bg-white hover:bg-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1">
+                          <div className="font-bold text-sm">{team.name}</div>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setTeamInfoId(team.id);
+                            }}
+                            className={`inline-flex items-center justify-center w-4 h-4 border-2 border-black rounded-full text-[10px] font-bold bg-white hover:bg-gray-200 ${selectedTeam === team.id ? 'text-black' : 'text-black'}`}
+                            aria-label="查看球队介绍"
+                          >
+                            ?
+                          </button>
+                        </div>
+                        <div className={`text-[11px] font-semibold mt-0.5 ${selectedTeam === team.id ? 'text-red-300' : 'text-red-600'}`}>难度: {team.difficulty}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

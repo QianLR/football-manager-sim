@@ -67,7 +67,7 @@
   {
     "id": "chelsea",
     "name": "切尔西",
-    "difficulty": "Hard",
+    "difficulty": "Normal",
     "description": "你拥有最多的资金，代价是过高的话语权会摧毁管理层的信任。媒体对你们不错。球队对联赛排名期望不高，但对杯赛冠军势在必得。",
     "leagueId": "epl",
     "leagueSize": 20,
@@ -89,7 +89,7 @@
   {
     "id": "dortmund",
     "name": "多特蒙德",
-    "difficulty": "Hard",
+    "difficulty": "Normal",
     "description": "球队的期望不高，正如球队的资金不多。好消息是，你有一个非常讨媒体喜欢的吉祥物；坏消息是，你是无证上岗，意味着你每月还得去考教练证。",
     "leagueId": "bundesliga",
     "leagueSize": 18,
