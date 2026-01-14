@@ -27,6 +27,7 @@ const Dashboard = () => {
   const { stats, currentTeam, month, quarter, year, tabloidCount, playerName, estimatedRanking, specialMechanicState } = state;
 
   const [infoKey, setInfoKey] = useState(null);
+  const [showSchedule, setShowSchedule] = useState(false);
 
   if (!currentTeam) return null;
 
@@ -34,6 +35,39 @@ const Dashboard = () => {
 
   const expectationRanking = currentTeam.expectations?.ranking;
   const expectationText = expectationRanking === 1 ? '第1名' : `前${expectationRanking}名`;
+
+  const leagueOpponents = Array.isArray(state.leagueOpponents) ? state.leagueOpponents : [];
+  const leagueSchedule = Array.isArray(state.leagueSchedule) ? state.leagueSchedule : [];
+  const leagueRoundCursor = typeof state.leagueRoundCursor === 'number' ? state.leagueRoundCursor : 0;
+  const leagueMatchResults = (state.leagueMatchResults && typeof state.leagueMatchResults === 'object') ? state.leagueMatchResults : {};
+
+  const idToName = new Map();
+  idToName.set(currentTeam.id, currentTeam.name);
+  leagueOpponents.forEach(o => {
+    if (o && o.id && o.name) idToName.set(o.id, o.name);
+  });
+
+  const scheduleRows = leagueSchedule
+    .map((round, roundIndex) => {
+      const fixtures = round?.fixtures || [];
+      const mine = fixtures.find(f => f && (f.homeId === currentTeam.id || f.awayId === currentTeam.id));
+      if (!mine) return null;
+
+      const homeName = idToName.get(mine.homeId) || mine.homeId;
+      const awayName = idToName.get(mine.awayId) || mine.awayId;
+      const played = roundIndex < leagueRoundCursor;
+      const result = leagueMatchResults[roundIndex] || null;
+
+      return { roundIndex, homeName, awayName, played, result };
+    })
+    .filter(Boolean);
+
+  const resultBadge = (r) => {
+    if (r === 'W') return { text: '胜', className: 'bg-green-200 text-green-900 border-green-900' };
+    if (r === 'L') return { text: '负', className: 'bg-red-200 text-red-900 border-red-900' };
+    if (r === 'D') return { text: '平', className: 'bg-gray-700 text-white border-gray-900' };
+    return null;
+  };
 
   return (
     <div className="retro-box p-2">
@@ -61,9 +95,61 @@ const Dashboard = () => {
         </div>
       )}
 
+      {showSchedule && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
+          <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-md w-full p-3">
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-bold text-sm font-mono">赛程（仅本队）</div>
+              <button
+                onClick={() => setShowSchedule(false)}
+                className="retro-btn text-xs py-1 px-2"
+              >
+                关闭
+              </button>
+            </div>
+            <div className="text-xs font-mono leading-relaxed">
+              {scheduleRows.length === 0 ? (
+                <div className="text-gray-600">暂无赛程数据</div>
+              ) : (
+                <div className="max-h-[70vh] overflow-y-auto border-2 border-black">
+                  {scheduleRows.map(row => {
+                    const badge = row.played ? resultBadge(row.result) : null;
+                    const rowTextClass = row.played ? 'text-black' : 'text-gray-500';
+                    return (
+                      <div
+                        key={row.roundIndex}
+                        className={`flex items-center justify-between px-2 py-1 border-b border-black/20 ${rowTextClass}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-gray-600">第{row.roundIndex + 1}轮</span>
+                          <span className="font-bold">{row.homeName} vs {row.awayName}</span>
+                        </div>
+                        {badge && (
+                          <span className={`text-[10px] font-bold border px-2 py-0.5 ${badge.className}`}>{badge.text}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center mb-2 border-b-2 border-black pb-1">
-        <h2 className="text-base font-bold font-mono uppercase">{currentTeam.name} | 教练：{playerName}</h2>
-        <div className="text-xs font-mono text-right">
+        <div>
+          <h2 className="text-base font-bold font-mono uppercase">{currentTeam.name} | 教练：{playerName}</h2>
+          <div className="mt-1">
+            <button
+              onClick={() => setShowSchedule(true)}
+              className="retro-btn text-[11px] py-1 px-2"
+            >
+              查看赛程
+            </button>
+          </div>
+        </div>
+        <div className="text-xs font-mono text-right pr-14">
           <div>第{year}年 第{quarter}季度 第{month}个月</div>
           <div>期望: {expectationText}</div>
           {isRoofClosed && (

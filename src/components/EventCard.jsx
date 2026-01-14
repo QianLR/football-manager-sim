@@ -8,6 +8,7 @@ const EventCard = () => {
 
   const [expandedDecisionId, setExpandedDecisionId] = useState(null);
   const [infoDecisionId, setInfoDecisionId] = useState(null);
+  const [confirmExplode, setConfirmExplode] = useState(null);
   
   // Calculate remaining points dynamically
   const remainingPoints = state.decisionPoints;
@@ -104,7 +105,7 @@ const EventCard = () => {
         return true; 
     });
 
-    const handleDecisionClick = (decision, option = null) => {
+    const dispatchDecision = (decision, option = null) => {
         // Construct payload
         let effects = option ? option.effects : decision.effects;
         if (
@@ -135,8 +136,46 @@ const EventCard = () => {
         setExpandedDecisionId(null);
     };
 
+    const handleDecisionClick = (decision, option = null) => {
+        if (decision?.id === 'press_conference' && option?.id === 'explode') {
+            setConfirmExplode({ decision, option });
+            return;
+        }
+        dispatchDecision(decision, option);
+    };
+
     return (
       <div className="retro-box p-2">
+        {confirmExplode && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
+            <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-sm w-full p-3">
+              <div className="font-bold text-sm font-mono mb-2">确认</div>
+              <div className="text-xs font-mono text-gray-800 leading-relaxed mb-3">
+                你确定要这么做吗？
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setConfirmExplode(null)}
+                  className="retro-btn text-xs py-1 px-2"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={() => {
+                    const payload = confirmExplode;
+                    setConfirmExplode(null);
+                    if (payload && payload.decision) {
+                      dispatchDecision(payload.decision, payload.option);
+                    }
+                  }}
+                  className="retro-btn-primary text-xs py-1 px-2"
+                >
+                  确定
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {infoDecisionId && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
             <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-md w-full p-3">
@@ -258,7 +297,8 @@ const EventCard = () => {
                                 const lowAuthority = requiredAuthority && state.stats.authority < requiredAuthority;
                                 const insufficientFunds = costsFunds && state.stats.funds < Math.abs(optEffects.funds);
                                 const limitReached = remainingPoints <= 0;
-                                const disabled = limitReached || lowAuthority || insufficientFunds;
+                                const explodeBlocked = (decision.id === 'press_conference' && opt.id === 'explode' && state.explodeUsedThisQuarter);
+                                const disabled = limitReached || lowAuthority || insufficientFunds || explodeBlocked;
 
                                 const disabledHint = lowAuthority && insufficientFunds
                                   ? `需话语权≥${requiredAuthority}，且资金不足`
@@ -266,6 +306,8 @@ const EventCard = () => {
                                     ? `需话语权≥${requiredAuthority}`
                                     : insufficientFunds
                                       ? '资金不足'
+                                      : (decision.id === 'press_conference' && opt.id === 'explode' && state.explodeUsedThisQuarter)
+                                        ? '本季度已使用'
                                       : '';
                                 const rightText = disabledHint || formatEffects(optEffects);
                                 

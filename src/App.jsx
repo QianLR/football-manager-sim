@@ -618,19 +618,18 @@ function App() {
     <div className="h-screen bg-[#e0e0e0] p-2 font-mono overflow-hidden">
       <AchievementToast toast={currentToast} />
 
-      {state.gameState === 'playing' && (
-        <button
-          onClick={() => openAchievementsModal({ title: '成就（本存档）', unlockedMap: state.achievementsUnlocked, markSeen: true })}
-          className="fixed top-2 right-2 z-50 retro-btn text-xs py-1 px-2"
-        >
-          <span className="inline-flex items-center gap-1">
-            <span>🏆</span>
-            {hasUnreadAchievements && <span className="inline-block w-2 h-2 bg-red-600 border border-black" />}
-          </span>
-        </button>
-      )}
-
-      <div className="max-w-6xl w-full h-full mx-auto flex flex-col gap-2">
+      <div className="max-w-6xl w-full h-full mx-auto flex flex-col gap-2 relative">
+        {state.gameState === 'playing' && (
+          <button
+            onClick={() => openAchievementsModal({ title: '成就（本存档）', unlockedMap: state.achievementsUnlocked, markSeen: true })}
+            className="absolute top-0 right-0 z-50 retro-btn text-xs py-1 px-2"
+          >
+            <span className="inline-flex items-center gap-1">
+              <span>🏆</span>
+              {hasUnreadAchievements && <span className="inline-block w-2 h-2 bg-red-600 border border-black" />}
+            </span>
+          </button>
+        )}
         <div className="space-y-2 overflow-auto">
           <Dashboard />
           <BuffPool />

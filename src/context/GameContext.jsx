@@ -43,6 +43,7 @@ const initialState = {
   relegationFinalRanking: null,
   tabloidStalkingUnlocked: false,
   coffeeRefUsedThisQuarter: false,
+  explodeUsedThisQuarter: false,
   achievementsUnlocked: {},
   achievementToastQueue: [],
   opponentTacticsBoostThisMonth: 0,
@@ -51,6 +52,7 @@ const initialState = {
   crossLeagueTacticsInflation: 0,
   leagueSchedule: [],
   leagueRoundCursor: 0,
+  leagueMatchResults: {},
   uclActive: false,
   uclAlive: false,
   uclStage: null,
@@ -62,6 +64,7 @@ const initialState = {
   uclQualifiedThisSeason: false,
   uclQualifiedNextSeason: false,
   uclWonSeasonYear: null,
+  season2TutorialShown: false,
   injuryTutorialShown: false,
   uclTutorialShown: false
 };
@@ -150,6 +153,15 @@ function buildInjuryRiskTutorialEvent() {
     id: 'tutorial_injury_risk',
     title: '新机制：伤病风险',
     description: '从第二赛季开始，伤病风险将加入你的管理范围。伤病风险每个季度结算会增加1点；当达到5点时将触发伤病潮，降低技战术水平与更衣室稳定性。你可以通过决策来主动管理它。',
+    options: [{ text: '我知道了', effects: {} }]
+  };
+}
+
+function buildSeason2StarterTutorialEvent() {
+  return {
+    id: 'tutorial_season2_starter',
+    title: '新赛季提示',
+    description: '从第二赛季开始，有些事情会变得不一样了：\n\n1）【训练】里会出现新的选项，它们可能会带来额外收益，也可能带来额外代价。\n2）伤病风险会成为需要你长期关注的指标；当它累计到5点时，球队将迎来伤病潮。\n3）你依然可以通过“调情”获得一些灵感与信息，但圈内人也会更加谨慎——别把它当成每次都稳赚的捷径。',
     options: [{ text: '我知道了', effects: {} }]
   };
 }
@@ -292,10 +304,10 @@ function buildInjuryCrisisEvent(nextEvent) {
   };
 }
 
-function hydrateLoadedState(savedState) {
-  if (!savedState || typeof savedState !== 'object') return null;
+function hydrateLoadedState(raw) {
+  if (!raw || typeof raw !== 'object') return null;
 
-  const next = { ...initialState, ...savedState, pendingSave: null };
+  const next = { ...initialState, ...raw, pendingSave: null, season2TutorialShown: raw.season2TutorialShown || false };
 
   if (next.currentTeam && typeof next.currentTeam === 'string') {
     const found = teamsData.find(t => t.id === next.currentTeam);
@@ -321,6 +333,7 @@ function hydrateLoadedState(savedState) {
   if (next.uclQualifiedThisSeason === undefined) next.uclQualifiedThisSeason = false;
   if (next.uclQualifiedNextSeason === undefined) next.uclQualifiedNextSeason = false;
   if (next.uclWonSeasonYear === undefined) next.uclWonSeasonYear = null;
+  if (next.season2TutorialShown === undefined) next.season2TutorialShown = false;
   if (next.injuryTutorialShown === undefined) next.injuryTutorialShown = false;
   if (next.uclTutorialShown === undefined) next.uclTutorialShown = false;
 
@@ -377,8 +390,13 @@ function hydrateLoadedState(savedState) {
     const leagueId = next.currentTeam?.leagueId || 'epl';
     const teamId = next.currentTeam?.id;
     next.leagueSchedule = buildLeagueSchedule({ leagueId, playerTeamId: teamId, opponents: next.leagueOpponents });
+  } else {
+    const teamId = next.currentTeam?.id;
+    if (teamId) next.leagueSchedule = enforcePlayerStrictAlternation(next.leagueSchedule, teamId, true);
   }
   if (next.leagueRoundCursor === undefined) next.leagueRoundCursor = 0;
+  if (!next.leagueMatchResults || typeof next.leagueMatchResults !== 'object') next.leagueMatchResults = {};
+  if (next.explodeUsedThisQuarter === undefined) next.explodeUsedThisQuarter = false;
 
   return next;
 }
@@ -462,32 +480,30 @@ function getPlayerSideInRound(round, playerId) {
   return null;
 }
 
-function reorderRoundsStrictAlternation(rounds, playerId, startHome) {
-  const home = [];
-  const away = [];
-  rounds.forEach(r => {
-    const side = getPlayerSideInRound(r, playerId);
-    if (side === 'home') home.push(r);
-    else if (side === 'away') away.push(r);
-  });
+function enforcePlayerStrictAlternation(rounds, playerId, startHome) {
+  if (!Array.isArray(rounds) || !playerId) return rounds;
 
-  shuffleInPlace(home);
-  shuffleInPlace(away);
+  const out = rounds.map(r => ({
+    ...(r || {}),
+    fixtures: Array.isArray(r?.fixtures) ? r.fixtures.map(f => ({ ...(f || {}) })) : []
+  }));
 
-  const out = [];
-  let wantHome = Boolean(startHome);
-  while (home.length > 0 || away.length > 0) {
-    if (wantHome) {
-      if (home.length > 0) out.push(home.pop());
-      else if (away.length > 0) out.push(away.pop());
-    } else {
-      if (away.length > 0) out.push(away.pop());
-      else if (home.length > 0) out.push(home.pop());
-    }
-    wantHome = !wantHome;
+  const startIsHome = Boolean(startHome);
+  for (let i = 0; i < out.length; i += 1) {
+    const wantHome = startIsHome ? (i % 2 === 0) : (i % 2 !== 0);
+    const wantSide = wantHome ? 'home' : 'away';
+    const side = getPlayerSideInRound(out[i], playerId);
+    if (!side || side === wantSide) continue;
+
+    const fixtures = out[i].fixtures || [];
+    const idx = fixtures.findIndex(f => f && (f.homeId === playerId || f.awayId === playerId));
+    if (idx < 0) continue;
+    const f = fixtures[idx];
+    fixtures[idx] = { homeId: f.awayId, awayId: f.homeId };
+    out[i].fixtures = fixtures;
   }
 
-  return out.length === rounds.length ? out : rounds;
+  return out;
 }
 
 function generateSingleRoundRobin(teamIds) {
@@ -545,12 +561,8 @@ function buildLeagueSchedule({ leagueId, playerTeamId, opponents }) {
   const firstHalf = generateSingleRoundRobin(teamIds);
   const secondHalf = firstHalf.map(invertRound);
 
-  const firstOrdered = reorderRoundsStrictAlternation(firstHalf, playerTeamId, true);
-  const lastSide = getPlayerSideInRound(firstOrdered[firstOrdered.length - 1], playerTeamId);
-  const secondStartHome = lastSide ? (lastSide !== 'home') : false;
-  const secondOrdered = reorderRoundsStrictAlternation(secondHalf, playerTeamId, secondStartHome);
-
-  return [...firstOrdered, ...secondOrdered];
+  const schedule = [...firstHalf, ...secondHalf];
+  return enforcePlayerStrictAlternation(schedule, playerTeamId, true);
 }
 
 function buildLeagueOpponents({ leagueId, playerTeamId, playerTactics }) {
@@ -561,8 +573,11 @@ function buildLeagueOpponents({ leagueId, playerTeamId, playerTactics }) {
     .sort((a, b) => (a.leagueIndex || 0) - (b.leagueIndex || 0));
   if (base.length === 0) return [];
 
-  const mean = clampNumber(playerTactics, 0, 10);
-  const stdDev = 1.0;
+  const pt = clampNumber(playerTactics, 0, 10);
+  const mean = pt >= 9
+    ? clampNumber(8.2 + (pt - 9) * 0.4, 0, 9)
+    : pt;
+  const stdDev = pt >= 9 ? 0.65 : 1.0;
 
   return base.map(t => {
     const seeded = typeof t.opponentBaseTactics === 'number' ? t.opponentBaseTactics : null;
@@ -969,6 +984,7 @@ function gameReducer(state, action) {
         leagueOpponentCursor: 0,
         leagueSchedule,
         leagueRoundCursor: 0,
+        leagueMatchResults: {},
         currentEvent: {
           id: 'intro',
           title: '欢迎执教',
@@ -1147,6 +1163,10 @@ function gameReducer(state, action) {
             return state;
         }
 
+        if (decisionId === 'press_conference' && optionId === 'explode' && state.explodeUsedThisQuarter) {
+            return state;
+        }
+
         // Check if decision type already taken
         if (state.activeDecisionsTaken.includes(type)) {
             return state;
@@ -1282,6 +1302,7 @@ function gameReducer(state, action) {
         }
 
         const nextCoffeeRefUsedThisQuarterAfterDecision = state.coffeeRefUsedThisQuarter || decisionId === 'coffee_ref';
+        const nextExplodeUsedThisQuarterAfterDecision = state.explodeUsedThisQuarter || (decisionId === 'press_conference' && optionId === 'explode');
 
         let flavorEvent = null;
         if (decisionId === 'flirtation' && optionId === 'legend_flirt') {
@@ -1342,6 +1363,7 @@ function gameReducer(state, action) {
             currentEvent: nextCurrentEventAfterDecision,
             queuedEvent: nextQueuedEventAfterDecision,
             coffeeRefUsedThisQuarter: nextCoffeeRefUsedThisQuarterAfterDecision,
+            explodeUsedThisQuarter: nextExplodeUsedThisQuarterAfterDecision,
             opponentTacticsBoostThisMonth: opponentTacticsBoostThisMonthAfterDecision,
             leagueOpponents: nextLeagueOpponentsAfterDecision,
             crossLeagueTacticsInflation: nextCrossLeagueTacticsInflation
@@ -1368,6 +1390,7 @@ function gameReducer(state, action) {
         let settlementEvent = null;
         let victory = false;
         let quarterEstimatedRanking = null;
+        let seasonSettlementPoints = null;
         let nextTabloidCount = state.tabloidCount;
         let nextActiveBuffs = [...state.activeBuffs];
         let pointsThisQuarterAfterMonth = state.pointsThisQuarter;
@@ -1381,6 +1404,7 @@ function gameReducer(state, action) {
         let nextEstimatedRanking = state.estimatedRanking;
         let nextPendingSeasonReset = state.pendingSeasonReset;
         let nextCoffeeRefUsedThisQuarter = state.coffeeRefUsedThisQuarter;
+        let nextExplodeUsedThisQuarter = state.explodeUsedThisQuarter;
 
         let nextUclActive = state.uclActive;
         let nextUclAlive = state.uclAlive;
@@ -1469,6 +1493,7 @@ function gameReducer(state, action) {
         }
 
         let pointsGainedThisMonth = 0;
+        let nextLeagueMatchResults = { ...(state.leagueMatchResults || {}) };
         let nextLeagueOpponents = Array.isArray(state.leagueOpponents)
           ? state.leagueOpponents.map(o => ({ ...o }))
           : [];
@@ -1486,8 +1511,11 @@ function gameReducer(state, action) {
         const playerId = state.currentTeam?.id;
 
         for (let r = 0; r < roundsThisMonth; r += 1) {
+          const roundIndex = nextLeagueRoundCursor;
           const round = nextLeagueSchedule[nextLeagueRoundCursor];
           if (!round) break;
+
+          let playerResultThisRound = null;
 
           const fixtures = round.fixtures || [];
           fixtures.forEach(f => {
@@ -1518,6 +1546,9 @@ function gameReducer(state, action) {
 
             if (homeIsPlayer) {
               pointsGainedThisMonth += homePoints;
+              if (homePoints === 3) playerResultThisRound = 'W';
+              else if (homePoints === 1) playerResultThisRound = 'D';
+              else playerResultThisRound = 'L';
             } else {
               const o = oppById.get(homeId);
               if (o) o.points = (o.points || 0) + homePoints;
@@ -1525,11 +1556,18 @@ function gameReducer(state, action) {
 
             if (awayIsPlayer) {
               pointsGainedThisMonth += awayPoints;
+              if (awayPoints === 3) playerResultThisRound = 'W';
+              else if (awayPoints === 1) playerResultThisRound = 'D';
+              else playerResultThisRound = 'L';
             } else {
               const o = oppById.get(awayId);
               if (o) o.points = (o.points || 0) + awayPoints;
             }
           });
+
+          if (playerResultThisRound) {
+            nextLeagueMatchResults[roundIndex] = playerResultThisRound;
+          }
 
           nextLeagueRoundCursor += 1;
         }
@@ -1554,6 +1592,7 @@ function gameReducer(state, action) {
             nextQuarter += 1;
             shouldAutoSave = true;
             nextCoffeeRefUsedThisQuarter = false;
+            nextExplodeUsedThisQuarter = false;
 
             if (state.year >= 2) {
                 if (statsAfterMonth.injuryRisk === undefined) statsAfterMonth.injuryRisk = 0;
@@ -1631,7 +1670,17 @@ function gameReducer(state, action) {
 
             // Mark season reset to be applied after confirming season settlement event
             nextPendingSeasonReset = true;
+            seasonSettlementPoints = statsAfterMonth.points;
             pointsThisQuarterAfterMonth = 0;
+
+            // Reset league table immediately for the new season display.
+            // The season settlement event will still show last season's points via seasonSettlementPoints.
+            statsAfterMonth.points = 0;
+            if (Array.isArray(nextLeagueOpponents) && nextLeagueOpponents.length > 0) {
+                nextLeagueOpponents = nextLeagueOpponents.map(o => ({ ...o, points: 0 }));
+            }
+            nextLeagueRoundCursor = 0;
+            nextLeagueMatchResults = {};
 
             // Reset per-season toggles, but keep current on/off states.
             nextSpecialState = {
@@ -1671,14 +1720,18 @@ function gameReducer(state, action) {
           }
         }
 
+        if (nextYear === 2 && nextYear !== state.year && victory && state.currentTeam?.id === 'man_utd') {
+          nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'manutd_year1_champion');
+        }
+
         if (nextYear !== state.year) {
             nextRandomEventsThisYear = [];
             nextLastRandomEventId = null;
         }
 
         // Update ranking every month based on league table when available.
-        if (nextPendingSeasonReset && quarterEstimatedRanking !== null) {
-            nextEstimatedRanking = quarterEstimatedRanking;
+        if (nextPendingSeasonReset) {
+            nextEstimatedRanking = 1;
         } else if (Array.isArray(nextLeagueOpponents) && nextLeagueOpponents.length > 0) {
             nextEstimatedRanking = computeRankingFromLeague({
               playerPoints: statsAfterMonth.points,
@@ -1830,7 +1883,7 @@ function gameReducer(state, action) {
                         const seasonSettlementEvent = buildSeasonSettlementEvent({
                             seasonYear: state.year,
                             ranking: seasonEndRanking,
-                            points: statsAfterMonth.points,
+                            points: (seasonSettlementPoints ?? statsAfterMonth.points),
                             champion: victory,
                             uclQualifiedNextSeason: qualifiedNextSeason
                         });
@@ -1867,7 +1920,7 @@ function gameReducer(state, action) {
                 const seasonSettlementEvent = buildSeasonSettlementEvent({
                     seasonYear: state.year,
                     ranking: seasonEndRanking,
-                    points: statsAfterMonth.points,
+                    points: (seasonSettlementPoints ?? statsAfterMonth.points),
                     champion: victory,
                     uclQualifiedNextSeason: qualifiedNextSeason
                 });
@@ -1968,10 +2021,12 @@ function gameReducer(state, action) {
             pendingSave: state.pendingSave ? state.pendingSave : (shouldAutoSave ? { type: 'auto' } : null),
             pendingSeasonReset: nextPendingSeasonReset,
             coffeeRefUsedThisQuarter: nextCoffeeRefUsedThisQuarter,
+            explodeUsedThisQuarter: nextExplodeUsedThisQuarter,
             leagueOpponents: nextLeagueOpponents,
             leagueOpponentCursor: state.leagueOpponentCursor,
             leagueSchedule: nextLeagueSchedule,
             leagueRoundCursor: nextLeagueRoundCursor,
+            leagueMatchResults: nextLeagueMatchResults,
             uclActive: nextUclActive,
             uclAlive: nextUclAlive,
             uclStage: nextUclStage,
@@ -2023,6 +2078,7 @@ function gameReducer(state, action) {
                 leagueOpponentCursor: 0,
                 leagueSchedule: switchLeagueSchedule,
                 leagueRoundCursor: 0,
+                leagueMatchResults: {},
                 currentEvent: {
                     id: 'welcome_liverpool',
                     title: 'You’ll never walk alone',
@@ -2148,6 +2204,7 @@ function gameReducer(state, action) {
         let resetLeagueOpponentCursor = state.leagueOpponentCursor;
         let resetLeagueSchedule = state.leagueSchedule;
         let resetLeagueRoundCursor = state.leagueRoundCursor;
+        let resetLeagueMatchResults = state.leagueMatchResults;
 
         let resetCrossLeagueTacticsInflation = clampNumber(state.crossLeagueTacticsInflation || 0, 0, 2);
 
@@ -2205,6 +2262,7 @@ function gameReducer(state, action) {
             opponents: resetLeagueOpponents
           });
           resetLeagueRoundCursor = 0;
+          resetLeagueMatchResults = {};
 
           resetUclActive = false;
           resetUclAlive = false;
@@ -2460,6 +2518,7 @@ function gameReducer(state, action) {
 
         let nextInjuryTutorialShown = state.injuryTutorialShown;
         let nextUclTutorialShown = state.uclTutorialShown;
+        let nextSeason2TutorialShown = state.season2TutorialShown;
 
         let nextRelegationFinalRanking = state.relegationFinalRanking ?? null;
 
@@ -2526,6 +2585,11 @@ function gameReducer(state, action) {
                 }
             };
 
+            if (!state.season2TutorialShown) {
+                appendToChain(buildSeason2StarterTutorialEvent());
+                nextSeason2TutorialShown = true;
+            }
+
             if (!state.injuryTutorialShown) {
                 appendToChain(buildInjuryRiskTutorialEvent());
                 nextInjuryTutorialShown = true;
@@ -2572,6 +2636,7 @@ function gameReducer(state, action) {
             leagueOpponentCursor: resetLeagueOpponentCursor,
             leagueSchedule: resetLeagueSchedule,
             leagueRoundCursor: resetLeagueRoundCursor,
+            leagueMatchResults: resetLeagueMatchResults,
             crossLeagueTacticsInflation: resetCrossLeagueTacticsInflation,
             uclActive: resetUclActive,
             uclAlive: resetUclAlive,
@@ -2583,6 +2648,7 @@ function gameReducer(state, action) {
             uclCurrentOpponent: resetUclCurrentOpponent,
             uclQualifiedThisSeason: resetUclQualifiedThisSeason,
             uclQualifiedNextSeason: resetUclQualifiedNextSeason,
+            season2TutorialShown: nextSeason2TutorialShown,
             injuryTutorialShown: nextInjuryTutorialShown,
             uclTutorialShown: nextUclTutorialShown
         };

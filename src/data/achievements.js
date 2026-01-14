@@ -142,6 +142,12 @@ export const ACHIEVEMENTS = [
     title: '米兰大小猪',
     hint: '哥俩又来吃饭啦？',
     clue: '用那个名字执教米兰，并在状态栏里看到某位名宿。'
+  },
+  {
+    id: 'manutd_year1_champion',
+    title: '天啊，你就是战术大师！',
+    hint: '在曼联的第一个赛季就夺得冠军。',
+    clue: '挑战地狱难度并在第一年夺冠。'
   }
 ];
 
