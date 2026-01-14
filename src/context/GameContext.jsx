@@ -383,26 +383,25 @@ function hydrateLoadedState(savedState) {
   return next;
 }
 
-function estimateRankingFromPoints(points, monthsPlayed) {
+function estimateRankingFromPoints(points, monthsPlayed, leagueSize = 20) {
   const played = Math.max(0, monthsPlayed || 0);
   if (played === 0) return 1;
+
+  const size = Math.max(2, leagueSize || 20);
 
   // 3 quarters * 3 months = 9 months per season. Champion pace ~84 points.
   const championPacePerMonth = 28 / 3;
   const target = championPacePerMonth * played;
   const diff = target - (points || 0);
 
-  let estimatedRanking = 1;
-  if (diff <= 0) estimatedRanking = 1;
-  else if (diff <= 3) estimatedRanking = 2;
-  else if (diff <= 6) estimatedRanking = 3;
-  else if (diff <= 9) estimatedRanking = 4;
-  else if (diff <= 12) estimatedRanking = 5;
-  else if (diff <= 15) estimatedRanking = 6;
-  else if (diff <= 18) estimatedRanking = 7;
-  else estimatedRanking = 8;
+  if (diff <= 0) return 1;
 
-  return Math.min(20, Math.max(1, estimatedRanking));
+  // Roughly map points gap to ranking gap. Previously we capped at 8, which locked
+  // the UI when league table is unavailable (e.g., after team switch / legacy saves).
+  const pointsPerRank = 3;
+  const estimatedRanking = 1 + Math.floor(diff / pointsPerRank);
+
+  return Math.min(size, Math.max(1, estimatedRanking));
 }
 
 function gaussianRandom(mean, stdDev) {
@@ -1051,6 +1050,16 @@ function gameReducer(state, action) {
 
     case 'LOAD_GAME': {
         const next = hydrateLoadedState(action.payload);
+        if (next) {
+            const team = teamsData.find(t => t.id === next.currentTeam.id);
+            if (team) {
+                const leagueId = team.leagueId || 'epl';
+                const leagueOpponents = buildLeagueOpponents({ leagueId, playerTeamId: team.id, playerTactics: next.stats.tactics });
+                const leagueSchedule = buildLeagueSchedule({ leagueId, playerTeamId: team.id, opponents: leagueOpponents });
+                next.leagueOpponents = leagueOpponents;
+                next.leagueSchedule = leagueSchedule;
+            }
+        }
         return next ? next : state;
     }
 
@@ -1096,7 +1105,8 @@ function gameReducer(state, action) {
       let nextEstimatedRankingAfterUpdate = state.estimatedRanking;
       if (!state.pendingSeasonReset && newStats.points !== state.stats.points) {
         const played = monthsPlayedFromState(state);
-        nextEstimatedRankingAfterUpdate = estimateRankingFromPoints(newStats.points, played);
+        const leagueSize = getLeagueRoster(state.currentTeam?.leagueId || 'epl')?.length || 20;
+        nextEstimatedRankingAfterUpdate = estimateRankingFromPoints(newStats.points, played, leagueSize);
       }
 
       let nextStateAfterUpdate = {
@@ -1567,7 +1577,7 @@ function gameReducer(state, action) {
                 });
             } else {
                 const monthsPlayedAtQuarterEnd = state.quarter * 3;
-                quarterEstimatedRanking = estimateRankingFromPoints(statsAfterMonth.points, monthsPlayedAtQuarterEnd);
+                quarterEstimatedRanking = estimateRankingFromPoints(statsAfterMonth.points, monthsPlayedAtQuarterEnd, leagueSize);
             }
             
             // 3. Check Expectations
@@ -1677,7 +1687,7 @@ function gameReducer(state, action) {
             });
         } else {
             const monthsPlayed = (nextQuarter - 1) * 3 + (nextMonth - 1);
-            nextEstimatedRanking = estimateRankingFromPoints(statsAfterMonth.points, monthsPlayed);
+            nextEstimatedRanking = estimateRankingFromPoints(statsAfterMonth.points, monthsPlayed, leagueSize);
         }
 
         // Random Event Logic
@@ -1985,6 +1995,18 @@ function gameReducer(state, action) {
             const nextTeam = teamsData.find(t => t.id === action.payload.switchTeamId);
             if (!nextTeam) return state;
 
+            const switchLeagueId = nextTeam?.leagueId || 'epl';
+            const switchLeagueOpponents = buildLeagueOpponents({
+              leagueId: switchLeagueId,
+              playerTeamId: nextTeam?.id,
+              playerTactics: nextTeam?.initialStats?.tactics
+            });
+            const switchLeagueSchedule = buildLeagueSchedule({
+              leagueId: switchLeagueId,
+              playerTeamId: nextTeam?.id,
+              opponents: switchLeagueOpponents
+            });
+
             let switched = {
                 ...initialState,
                 gameState: 'playing',
@@ -1997,6 +2019,10 @@ function gameReducer(state, action) {
                 achievementToastQueue: state.achievementToastQueue || [],
                 tabloidStalkingUnlocked: state.tabloidStalkingUnlocked,
                 easterEggTriggered: true,
+                leagueOpponents: switchLeagueOpponents,
+                leagueOpponentCursor: 0,
+                leagueSchedule: switchLeagueSchedule,
+                leagueRoundCursor: 0,
                 currentEvent: {
                     id: 'welcome_liverpool',
                     title: 'You’ll never walk alone',
@@ -2202,7 +2228,8 @@ function gameReducer(state, action) {
 
         if (!finalPendingSeasonReset && !isResolvingSeasonSettlement && finalStatsAfterEvent.points !== state.stats.points) {
           const played = monthsPlayedFromState(state);
-          finalEstimatedRanking = estimateRankingFromPoints(finalStatsAfterEvent.points, played);
+          const leagueSize = getLeagueRoster(state.currentTeam?.leagueId || 'epl')?.length || 20;
+          finalEstimatedRanking = estimateRankingFromPoints(finalStatsAfterEvent.points, played, leagueSize);
         }
         
         // Check Game Over conditions after event resolution
