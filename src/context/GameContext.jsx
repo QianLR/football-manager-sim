@@ -27,9 +27,11 @@ const initialState = {
     roofClosed: false, // Real Madrid
     canteenChangedThisSeason: { open: false, close: false },
     roofChangedThisSeason: { open: false, close: false },
-    milanLegendsUsedThisSeason: []
+    milanLegendsUsedThisSeason: [],
+    bayernDressingRoomRevealed: false
   },
   activeBuffs: [], // List of active buff/debuff IDs
+  hiddenBuffs: [],
   tabloidCount: 0,
   decisionCountThisMonth: 0, // Track number of decisions taken this month
   easterEggTriggered: false,
@@ -318,7 +320,21 @@ function hydrateLoadedState(raw) {
 
   const nextStats = { ...(next.stats || {}) };
   if (nextStats.injuryRisk === undefined) nextStats.injuryRisk = 0;
+  if (nextStats.points === undefined) nextStats.points = 0;
   next.stats = nextStats;
+
+  if (!Array.isArray(next.hiddenBuffs)) next.hiddenBuffs = [];
+
+  if (!next.specialMechanicState || typeof next.specialMechanicState !== 'object') {
+    next.specialMechanicState = { ...initialState.specialMechanicState };
+  }
+  if (next.specialMechanicState.bayernDressingRoomRevealed === undefined) next.specialMechanicState.bayernDressingRoomRevealed = false;
+
+  if (next.currentTeam?.id === 'bayern_munich') {
+    if (!Array.isArray(next.activeBuffs)) next.activeBuffs = [];
+    if (!next.activeBuffs.includes('bayern_committee')) next.activeBuffs.push('bayern_committee');
+    if (!next.activeBuffs.includes('bayern_history_proof')) next.activeBuffs.push('bayern_history_proof');
+  }
   if (!Array.isArray(next.achievementToastQueue)) next.achievementToastQueue = [];
   if (next.opponentTacticsBoostThisMonth === undefined) next.opponentTacticsBoostThisMonth = 0;
   if (next.crossLeagueTacticsInflation === undefined) next.crossLeagueTacticsInflation = 0;
@@ -679,6 +695,15 @@ function buildTabloidBreakingEvent() {
   };
 }
 
+function buildMusialaBayernEasterEggEvent() {
+  return {
+    id: 'musiala_bayern_easter_egg',
+    title: '欢迎执教',
+    description: '队员们对你的上任面面相觑。最后，管理层拨通了穆勒的电话，对方骑着马赶来，迅速把你带走了，并告诉你闲着的时候可以来打线上羊头牌，而不是坐在主教练的位置上。',
+    options: [{ text: '好吧……', effects: {}, setPendingGameState: 'start' }]
+  };
+}
+
 function isArtetaName(name) {
   const n = (name || '').trim().toLowerCase();
   return n === '阿尔特塔' || n === '米克尔阿尔特塔' || n === 'arteta' || n === 'mikel arteta';
@@ -722,6 +747,11 @@ function isNevilleName(name) {
 function isCarragherName(name) {
   const n = (name || '').trim().toLowerCase();
   return n === '卡拉格' || n === 'carragher' || n === 'jamie carragher';
+}
+
+function isMusialaName(name) {
+  const n = (name || '').trim().toLowerCase();
+  return n === '穆夏拉' || n === '穆西亚拉' || n === 'musiala';
 }
 
 function isInzaghiName(name) {
@@ -918,6 +948,17 @@ function gameReducer(state, action) {
       };
     }
 
+    case 'HIDE_BUFF': {
+      const id = action.payload?.id;
+      if (!id) return state;
+      const prev = Array.isArray(state.hiddenBuffs) ? state.hiddenBuffs : [];
+      if (prev.includes(id)) return state;
+      return {
+        ...state,
+        hiddenBuffs: [...prev, id]
+      };
+    }
+
     case 'START_GAME':
       const team = teamsData.find(t => t.id === action.payload.teamId);
 
@@ -964,6 +1005,12 @@ function gameReducer(state, action) {
           nextStartSpecialState = { ...nextStartSpecialState, milanLegendsUsedThisSeason: used };
           baseBuffs.push(picked);
         }
+      }
+
+      if (team && team.id === 'bayern_munich') {
+        baseBuffs.push('bayern_committee');
+        baseBuffs.push('bayern_history_proof');
+        nextStartSpecialState = { ...nextStartSpecialState, bayernDressingRoomRevealed: false };
       }
 
       const leagueId = team?.leagueId || 'epl';
@@ -1137,6 +1184,17 @@ function gameReducer(state, action) {
         nextStateAfterUpdate = unlockAchievementInState(nextStateAfterUpdate, 'alonso_manutd_fired');
       }
 
+      if (state.year >= 2 && (newStats.injuryRisk ?? 0) >= 5) {
+        const after = nextStateAfterUpdate.currentEvent || nextStateAfterUpdate.queuedEvent || null;
+        const remainingQueued = nextStateAfterUpdate.currentEvent ? nextStateAfterUpdate.queuedEvent : null;
+        nextStateAfterUpdate = {
+          ...nextStateAfterUpdate,
+          stats: { ...newStats, injuryRisk: Math.max(0, (newStats.injuryRisk ?? 0) - 5) },
+          currentEvent: buildInjuryCrisisEvent(after),
+          queuedEvent: remainingQueued
+        };
+      }
+
       return nextStateAfterUpdate;
 
     case 'TAKE_DECISION':
@@ -1173,7 +1231,11 @@ function gameReducer(state, action) {
         }
 
         // Check authority requirement for using funds
-        if (effectiveEffects?.funds < 0 && state.stats.authority < 70) {
+        if (
+          effectiveEffects?.funds < 0 &&
+          state.stats.authority < 70 &&
+          !(state.currentTeam?.id === 'bayern_munich' && decisionId === 'goat_head_sign')
+        ) {
             return state;
         }
 
@@ -1223,7 +1285,7 @@ function gameReducer(state, action) {
         }
 
         Object.keys(effectiveEffects).forEach(key => {
-             if (key === 'set_board_support_to_1' || key === 'chance_tabloid' || key === 'special_rainbow_armband' || key === 'points_bonus' || key === 'opponents_tactics_boost') return; // Skip special flags
+             if (key === 'set_board_support_to_1' || key === 'chance_tabloid' || key === 'special_rainbow_armband' || key === 'points_bonus' || key === 'opponents_tactics_boost' || key === 'special_bayern_reveal_dressing_room') return; // Skip special flags
 
              if (statsAfterDecision[key] !== undefined) {
                 const redirected = redirectNegativeStatEffect(statsAfterDecision, key, effectiveEffects[key]);
@@ -1294,6 +1356,10 @@ function gameReducer(state, action) {
             };
         }
 
+        if (state.currentTeam?.id === 'bayern_munich' && effectiveEffects.special_bayern_reveal_dressing_room) {
+          newSpecialState.bayernDressingRoomRevealed = true;
+        }
+
         // Check for tabloid scandal
         let scandalEvent = null;
         if (newTabloidCount >= 3) {
@@ -1347,6 +1413,14 @@ function gameReducer(state, action) {
             }
         } else {
             nextCurrentEventAfterDecision = scandalEvent;
+        }
+
+        if (state.year >= 2 && (statsAfterDecision.injuryRisk ?? 0) >= 5) {
+            statsAfterDecision.injuryRisk = Math.max(0, (statsAfterDecision.injuryRisk ?? 0) - 5);
+            const after = nextCurrentEventAfterDecision || nextQueuedEventAfterDecision || null;
+            const remainingQueued = nextCurrentEventAfterDecision ? nextQueuedEventAfterDecision : null;
+            nextCurrentEventAfterDecision = buildInjuryCrisisEvent(after);
+            nextQueuedEventAfterDecision = remainingQueued;
         }
 
         let nextStateAfterDecision = {
@@ -1418,6 +1492,10 @@ function gameReducer(state, action) {
         let nextUclQualifiedThisSeason = state.uclQualifiedThisSeason;
         let nextUclQualifiedNextSeason = state.uclQualifiedNextSeason;
 
+        if (state.currentTeam?.id === 'bayern_munich') {
+          nextSpecialState = { ...nextSpecialState, bayernDressingRoomRevealed: false };
+        }
+
         // Monthly Canteen Check (Man Utd)
         if (state.currentTeam.id === 'man_utd' && !nextSpecialState.canteenOpen) {
              // Delayed penalty for closed canteen
@@ -1448,6 +1526,10 @@ function gameReducer(state, action) {
         // Dressing Room Turmoil (< 40)
         if (statsAfterMonth.dressingRoom < 40) {
             if (!nextActiveBuffs.includes('turmoil')) nextActiveBuffs.push('turmoil');
+
+            if (state.currentTeam?.id === 'bayern_munich') {
+              statsAfterMonth.dressingRoom = Math.max(0, statsAfterMonth.dressingRoom - 5);
+            }
 
             // 动乱期间管理层支持、话语权每个结算期都会下降，小报消息每个月+1
             statsAfterMonth.boardSupport = Math.max(0, statsAfterMonth.boardSupport - 5);
@@ -1717,6 +1799,9 @@ function gameReducer(state, action) {
           }
           if (state.currentTeam?.id === 'man_utd') {
             nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'manutd_5_years');
+          }
+          if (state.currentTeam?.id === 'bayern_munich') {
+            nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'bayern_5_years');
           }
         }
 
@@ -2050,6 +2135,21 @@ function gameReducer(state, action) {
             const nextTeam = teamsData.find(t => t.id === action.payload.switchTeamId);
             if (!nextTeam) return state;
 
+            const switchedBuffs = action.payload.grantBuff ? [action.payload.grantBuff] : [];
+            let switchedSpecialState = { ...initialState.specialMechanicState };
+            if (nextTeam.id === 'chelsea') {
+              switchedBuffs.push('chelsea_sack_pressure');
+            }
+            if (nextTeam.id === 'dortmund') {
+              switchedBuffs.push('dortmund_emma_camera');
+              switchedBuffs.push('dortmund_unlicensed');
+            }
+            if (nextTeam.id === 'bayern_munich') {
+              switchedBuffs.push('bayern_committee');
+              switchedBuffs.push('bayern_history_proof');
+              switchedSpecialState = { ...switchedSpecialState, bayernDressingRoomRevealed: false };
+            }
+
             const switchLeagueId = nextTeam?.leagueId || 'epl';
             const switchLeagueOpponents = buildLeagueOpponents({
               leagueId: switchLeagueId,
@@ -2069,11 +2169,13 @@ function gameReducer(state, action) {
                 playerName: state.playerName,
                 coachingPhilosophy: state.coachingPhilosophy,
                 stats: { ...nextTeam.initialStats, injuryRisk: 0 },
-                activeBuffs: action.payload.grantBuff ? [action.payload.grantBuff] : [],
+                activeBuffs: switchedBuffs,
                 achievementsUnlocked: state.achievementsUnlocked || {},
                 achievementToastQueue: state.achievementToastQueue || [],
                 tabloidStalkingUnlocked: state.tabloidStalkingUnlocked,
                 easterEggTriggered: true,
+                hiddenBuffs: [],
+                specialMechanicState: switchedSpecialState,
                 leagueOpponents: switchLeagueOpponents,
                 leagueOpponentCursor: 0,
                 leagueSchedule: switchLeagueSchedule,
@@ -2099,6 +2201,14 @@ function gameReducer(state, action) {
 
         // Apply event option effects
         const eventEffects = { ...(action.payload.effects || {}) };
+
+        if (state.currentEvent?.id === 'intro' && state.currentTeam?.id === 'bayern_munich' && isMusialaName(state.playerName)) {
+          return unlockAchievementInState({
+            ...state,
+            currentEvent: buildMusialaBayernEasterEggEvent(),
+            queuedEvent: null
+          }, 'musiala_bayern_fired');
+        }
 
         // Special: El Clasico option is probabilistic (as narrative suggests)
         if (state.currentEvent && state.currentEvent.id === 'el_clasico' && !state.currentEvent.isOutcome) {
@@ -2315,6 +2425,14 @@ function gameReducer(state, action) {
             nextCurrentEvent = scandalEventAfterResolve;
         }
 
+        if (state.year >= 2 && (finalStatsAfterEvent.injuryRisk ?? 0) >= 5) {
+            finalStatsAfterEvent = { ...finalStatsAfterEvent, injuryRisk: Math.max(0, (finalStatsAfterEvent.injuryRisk ?? 0) - 5) };
+            const after = nextCurrentEvent || nextQueuedEvent || null;
+            const remainingQueued = nextCurrentEvent ? nextQueuedEvent : null;
+            nextCurrentEvent = buildInjuryCrisisEvent(after);
+            nextQueuedEvent = remainingQueued;
+        }
+
         if (action.payload && action.payload.uclAction === 'UCL_INTRO') {
             const candidates = Array.isArray(state.uclDrawCandidates) ? state.uclDrawCandidates : [];
             nextCurrentEvent = buildUclDrawEvent({ candidatesCount: candidates.length });
@@ -2366,7 +2484,17 @@ function gameReducer(state, action) {
             const opp = state.uclCurrentOpponent;
             const playerTeamName = state.currentTeam?.name || '你的俱乐部';
             const oppTeamName = opp?.name || '对手俱乐部';
-            const playerT = clampNumber(finalStatsAfterEvent.tactics, 0, 10);
+            let playerT = clampNumber(finalStatsAfterEvent.tactics, 0, 10);
+            if (
+              state.currentTeam?.id === 'bayern_munich' &&
+              Array.isArray(state.activeBuffs) &&
+              state.activeBuffs.includes('bayern_history_proof') &&
+              state.activeBuffs.includes('turmoil')
+            ) {
+              // Keep UI display unchanged, but slightly exceed 10 in UCL match computation
+              // so Bayern can break ties (including 10 vs 10) without going to dressing-room-based penalties.
+              playerT = clampNumber(playerT + 1.1, 0, 10.1);
+            }
             const oppT = clampNumber(opp?.tactics, 0, 10);
 
             finalStatsAfterEvent = { ...finalStatsAfterEvent };
@@ -2489,7 +2617,11 @@ function gameReducer(state, action) {
                 uclQualifiedNextSeason: resetUclQualifiedNextSeason,
                 uclWonSeasonYear
               };
-              return unlockAchievementInState(base, 'ucl_champion');
+              let next = unlockAchievementInState(base, 'ucl_champion');
+              if (state.currentTeam?.id === 'bayern_munich' && Array.isArray(state.activeBuffs) && state.activeBuffs.includes('turmoil')) {
+                next = unlockAchievementInState(next, 'bayern_turmoil_ucl');
+              }
+              return next;
             }
         }
 
@@ -2615,6 +2747,16 @@ function gameReducer(state, action) {
         if (!nextCurrentEvent && nextPendingGameState) {
             gameStateAfterEvent = nextPendingGameState;
             nextPendingGameState = null;
+        }
+
+        if (gameStateAfterEvent === 'start') {
+          return {
+            ...initialState,
+            gameState: 'start',
+            achievementsUnlocked: state.achievementsUnlocked || {},
+            achievementToastQueue: state.achievementToastQueue || [],
+            tabloidStalkingUnlocked: state.tabloidStalkingUnlocked
+          };
         }
 
         let nextStateBase = {

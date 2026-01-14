@@ -129,6 +129,28 @@
     "specialMechanic": "milan_legends"
   },
   {
+    "id": "bayern_munich",
+    "name": "拜仁慕尼黑",
+    "difficulty": "Hard",
+    "description": "你有着豪门应有的媒体力量、资金和话语权。同时，队委会让你的更衣室永远稳定在一百分——但你真的应该相信吗？",
+    "leagueId": "bundesliga",
+    "leagueSize": 18,
+    "leagueIndex": 1,
+    "initialStats": {
+      "boardSupport": 100,
+      "dressingRoom": 100,
+      "mediaSupport": 70,
+      "authority": 60,
+      "funds": 80,
+      "tactics": 7,
+      "points": 0
+    },
+    "expectations": {
+      "ranking": 1
+    },
+    "specialMechanic": "bayern_committee"
+  },
+  {
     "id": "liverpool",
     "name": "利物浦",
     "difficulty": "Hard",

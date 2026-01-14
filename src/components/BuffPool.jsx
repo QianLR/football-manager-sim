@@ -80,24 +80,76 @@ const buffDefinitions = {
     description: '本赛季持续援助：每个月媒体支持 +10。',
     type: 'buff',
     icon: '🥤'
+  },
+  'bayern_committee': {
+    name: '队委会',
+    description: '更衣室稳定的真实数字不可见；“动乱”不会显示在状态栏；当出现动乱时，每月额外-5更衣室稳定。',
+    type: 'debuff',
+    theme: 'pink',
+    icon: '👥'
+  },
+  'bayern_history_proof': {
+    name: '历史证明这是对的',
+    description: '当更衣室处于动乱时，你在欧冠的技战术水平比显示增加1。',
+    type: 'buff',
+    theme: 'pink',
+    icon: '🏛️'
   }
 };
 
 const BuffPool = () => {
-  const { state } = useGame();
-  const { activeBuffs } = state;
+  const { state, dispatch } = useGame();
+  const { activeBuffs, currentTeam, hiddenBuffs } = state;
 
   const [expanded, setExpanded] = useState(false);
+  const [confirmHideId, setConfirmHideId] = useState(null);
 
-  const shouldCollapse = (activeBuffs || []).length > 3;
+  const hideableIds = new Set(['bayern_committee', 'bayern_history_proof']);
+
+  const rawList = Array.isArray(activeBuffs) ? activeBuffs : [];
+  const hiddenSet = new Set(Array.isArray(hiddenBuffs) ? hiddenBuffs : []);
+  const isBayern = currentTeam?.id === 'bayern_munich';
+
+  const filteredList = rawList
+    .filter(id => !hiddenSet.has(id))
+    .filter(id => !(isBayern && id === 'turmoil'));
+
+  const shouldCollapse = filteredList.length > 3;
   const visibleBuffs = useMemo(() => {
-    const list = activeBuffs || [];
+    const list = filteredList;
     if (!shouldCollapse) return list;
     return expanded ? list : list.slice(0, 3);
-  }, [activeBuffs, expanded, shouldCollapse]);
+  }, [expanded, filteredList, shouldCollapse]);
 
   return (
     <div className="retro-box p-2">
+        {confirmHideId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
+            <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-md w-full p-3">
+              <div className="font-bold text-sm font-mono mb-2">确认隐藏</div>
+              <div className="text-xs font-mono leading-relaxed text-gray-800">
+                你确认已经理解该状态带来的效果吗？
+              </div>
+              <div className="mt-3 flex justify-end gap-2">
+                <button
+                  onClick={() => setConfirmHideId(null)}
+                  className="retro-btn text-xs py-1 px-2"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={() => {
+                    dispatch({ type: 'HIDE_BUFF', payload: { id: confirmHideId } });
+                    setConfirmHideId(null);
+                  }}
+                  className="retro-btn-primary text-xs py-1 px-2"
+                >
+                  我已确认，请隐藏
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-between border-b-2 border-black pb-1 mb-2">
             <h3 className="text-sm font-bold font-mono uppercase">
                 状态池 (BUFFS/DEBUFFS)
@@ -107,12 +159,12 @@ const BuffPool = () => {
                     onClick={() => setExpanded(v => !v)}
                     className="retro-btn text-[11px] py-1 px-2"
                 >
-                    {expanded ? '收起' : `展开（+${(activeBuffs || []).length - 3}）`}
+                    {expanded ? '收起' : `展开（+${filteredList.length - 3}）`}
                 </button>
             ) : null}
         </div>
         
-        {activeBuffs.length === 0 ? (
+        {filteredList.length === 0 ? (
             <div className="text-gray-500 font-mono italic text-center py-2 text-xs">
                 当前无特殊状态
             </div>
@@ -124,15 +176,32 @@ const BuffPool = () => {
                     
                     const isBuff = def.type === 'buff';
                     const theme = def.theme;
-                    const bgColor = theme === 'blue' ? 'bg-blue-100' : (isBuff ? 'bg-green-100' : 'bg-red-100');
-                    const borderColor = theme === 'blue' ? 'border-blue-800' : (isBuff ? 'border-green-800' : 'border-red-800');
-                    const textColor = theme === 'blue' ? 'text-blue-900' : (isBuff ? 'text-green-900' : 'text-red-900');
+                    const bgColor = theme === 'blue'
+                      ? 'bg-blue-100'
+                      : (theme === 'pink' ? 'bg-red-50' : (isBuff ? 'bg-green-100' : 'bg-red-100'));
+                    const borderColor = theme === 'blue'
+                      ? 'border-blue-800'
+                      : (theme === 'pink' ? 'border-red-300' : (isBuff ? 'border-green-800' : 'border-red-800'));
+                    const textColor = theme === 'blue'
+                      ? 'text-blue-900'
+                      : (theme === 'pink' ? 'text-red-900' : (isBuff ? 'text-green-900' : 'text-red-900'));
+                    const canHide = hideableIds.has(buffId);
 
                     return (
-                        <div key={buffId} className={`border-2 ${borderColor} ${bgColor} p-2 flex items-start gap-2`}>
+                        <div key={buffId} className={`border-2 ${borderColor} ${bgColor} p-2 flex items-start justify-between gap-2`}>
                             <div className="text-base">{def.icon}</div>
-                            <div>
-                                <div className={`font-bold text-xs ${textColor}`}>{def.name}</div>
+                            <div className="flex-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className={`font-bold text-xs ${textColor}`}>{def.name}</div>
+                                  {canHide ? (
+                                    <button
+                                      onClick={() => setConfirmHideId(buffId)}
+                                      className="retro-btn text-[10px] py-0.5 px-1.5"
+                                    >
+                                      隐藏
+                                    </button>
+                                  ) : null}
+                                </div>
                                 <div className="text-[10px] text-gray-700 font-mono leading-tight">{def.description}</div>
                             </div>
                         </div>

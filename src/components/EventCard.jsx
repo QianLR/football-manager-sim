@@ -261,6 +261,9 @@ const EventCard = () => {
                                     if (opt.condition && opt.condition.year && state.year < opt.condition.year) {
                                         return null;
                                     }
+
+                                    const optText = replaceDynamicText(opt.text);
+
                                     // Filter options based on current state for toggles
                                     if (decision.id === 'toggle_canteen') {
                                         if (specialMechanicState.canteenOpen && opt.id === 'open') return null;
@@ -287,18 +290,16 @@ const EventCard = () => {
                                   delete optEffects.chance_tabloid;
                                 }
 
-                                let optText = replaceDynamicText(opt.text);
-
                                 const baseRequiredAuthority = decision.condition && decision.condition.authority;
                                 const costsFunds = optEffects && optEffects.funds < 0;
                                 const requiredAuthority = costsFunds
                                   ? Math.max(baseRequiredAuthority || 0, 70)
-                                  : baseRequiredAuthority;
+                                  : (baseRequiredAuthority || 0);
                                 const lowAuthority = requiredAuthority && state.stats.authority < requiredAuthority;
                                 const insufficientFunds = costsFunds && state.stats.funds < Math.abs(optEffects.funds);
                                 const limitReached = remainingPoints <= 0;
-                                const explodeBlocked = (decision.id === 'press_conference' && opt.id === 'explode' && state.explodeUsedThisQuarter);
-                                const disabled = limitReached || lowAuthority || insufficientFunds || explodeBlocked;
+                                const explodeAlreadyUsed = (decision.id === 'press_conference' && opt.id === 'explode' && state.explodeUsedThisQuarter);
+                                const disabled = limitReached || lowAuthority || insufficientFunds || explodeAlreadyUsed;
 
                                 const disabledHint = lowAuthority && insufficientFunds
                                   ? `需话语权≥${requiredAuthority}，且资金不足`
@@ -306,7 +307,7 @@ const EventCard = () => {
                                     ? `需话语权≥${requiredAuthority}`
                                     : insufficientFunds
                                       ? '资金不足'
-                                      : (decision.id === 'press_conference' && opt.id === 'explode' && state.explodeUsedThisQuarter)
+                                      : explodeAlreadyUsed
                                         ? '本季度已使用'
                                       : '';
                                 const rightText = disabledHint || formatEffects(optEffects);
@@ -338,7 +339,7 @@ const EventCard = () => {
                             (() => {
                                 const requiredAuthority = decision.condition && decision.condition.authority;
                                 const costsFunds = decision.effects && decision.effects.funds < 0;
-                                const effectiveRequiredAuthority = costsFunds
+                                const effectiveRequiredAuthority = (costsFunds && !(decision.id === 'goat_head_sign' && currentTeam?.id === 'bayern_munich'))
                                   ? Math.max(requiredAuthority || 0, 70)
                                   : requiredAuthority;
                                 const lowAuthority = effectiveRequiredAuthority && state.stats.authority < effectiveRequiredAuthority;

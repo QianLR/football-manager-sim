@@ -142,6 +142,13 @@
         { "id": "close", "text": "关闭顶棚", "effects": { "special_roof": "close" } },
         { "id": "open", "text": "打开顶棚", "effects": { "special_roof": "open" } }
       ]
+    },
+    {
+      "id": "goat_head_sign",
+      "title": "打羊头牌",
+      "type": "special_bayern",
+      "teamId": "bayern_munich",
+      "effects": { "funds": -5, "dressingRoom": 3, "special_bayern_reveal_dressing_room": true }
     }
   ],
   "randomEvents": {

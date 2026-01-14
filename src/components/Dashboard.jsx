@@ -32,6 +32,9 @@ const Dashboard = () => {
   if (!currentTeam) return null;
 
   const isRoofClosed = currentTeam.id === 'real_madrid' && specialMechanicState?.roofClosed;
+  const isBayern = currentTeam.id === 'bayern_munich';
+  const dressingRoomRevealed = Boolean(specialMechanicState?.bayernDressingRoomRevealed);
+  const displayDressingRoom = isBayern && !dressingRoomRevealed ? 100 : stats.dressingRoom;
 
   const expectationRanking = currentTeam.expectations?.ranking;
   const expectationText = expectationRanking === 1 ? '第1名' : `前${expectationRanking}名`;
@@ -89,6 +92,9 @@ const Dashboard = () => {
               )}
               {infoKey === 'mediaSupport' && (
                 <div>当媒体支持为0时，所有“降低媒体支持”的效果将改为“降低更衣室稳定”。</div>
+              )}
+              {infoKey === 'bayern_dressingRoom' && (
+                <div>真实数值隐藏在迷雾中…如果真实数值低于40，球队将陷入动乱：管理层支持与话语权不断下降，小报消息每月+1。</div>
               )}
             </div>
           </div>
@@ -182,7 +188,25 @@ const Dashboard = () => {
       
       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
         <StatBar label="管理层支持" value={stats.boardSupport} color="blue" />
-        <StatBar label="更衣室稳定" value={stats.dressingRoom} color="blue" />
+        <StatBar
+          label={
+            isBayern ? (
+              <span className="inline-flex items-center gap-1">
+                <span className="font-bold">更衣室稳定</span>
+                <button
+                  onClick={() => setInfoKey('bayern_dressingRoom')}
+                  className="retro-btn text-[10px] py-0 px-1"
+                >
+                  ?
+                </button>
+              </span>
+            ) : (
+              '更衣室稳定'
+            )
+          }
+          value={displayDressingRoom}
+          color="blue"
+        />
         <StatBar
           label={
             <span className="inline-flex items-center gap-1">
