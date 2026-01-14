@@ -40,6 +40,7 @@ const initialState = {
   pendingSave: null,
   pendingSeasonReset: false,
   gameoverOverrideText: null,
+  relegationFinalRanking: null,
   tabloidStalkingUnlocked: false,
   coffeeRefUsedThisQuarter: false,
   achievementsUnlocked: {},
@@ -386,8 +387,8 @@ function estimateRankingFromPoints(points, monthsPlayed) {
   const played = Math.max(0, monthsPlayed || 0);
   if (played === 0) return 1;
 
-  // 3 quarters * 3 months = 9 months per season. Champion pace ~96 points.
-  const championPacePerMonth = 32 / 3;
+  // 3 quarters * 3 months = 9 months per season. Champion pace ~84 points.
+  const championPacePerMonth = 28 / 3;
   const target = championPacePerMonth * played;
   const diff = target - (points || 0);
 
@@ -416,6 +417,21 @@ function gaussianRandom(mean, stdDev) {
 function clampNumber(value, min, max) {
   const v = typeof value === 'number' ? value : 0;
   return Math.min(max, Math.max(min, v));
+}
+
+function sampleMatchPoints(homeStrength, awayStrength) {
+  const diff = (homeStrength || 0) - (awayStrength || 0);
+  const absDiff = Math.abs(diff);
+  const baseDraw = 0.34;
+  const drawProb = clampNumber(baseDraw - absDiff * 0.05, 0.18, 0.40);
+  const k = 0.75;
+  const homeWinRaw = 1 / (1 + Math.exp(-diff * k));
+  const homeWinProb = (1 - drawProb) * homeWinRaw;
+
+  const r = Math.random();
+  if (r < homeWinProb) return { homePoints: 3, awayPoints: 0 };
+  if (r < homeWinProb + drawProb) return { homePoints: 1, awayPoints: 1 };
+  return { homePoints: 0, awayPoints: 3 };
 }
 
 function shuffleInPlace(arr) {
@@ -669,6 +685,46 @@ function isAlonsoName(name) {
   return n === '阿隆索' || n === '哈维阿隆索' || n === 'xabi alonso' || n === 'alonso';
 }
 
+function isMaldiniName(name) {
+  const n = (name || '').trim().toLowerCase();
+  return n === '马尔蒂尼' || n === 'maldini' || n === 'paolo maldini';
+}
+
+function isNestaName(name) {
+  const n = (name || '').trim().toLowerCase();
+  return n === '内斯塔' || n === 'nesta' || n === 'alessandro nesta';
+}
+
+function isKloppName(name) {
+  const n = (name || '').trim().toLowerCase();
+  return n === '克洛普' || n === 'klopp' || n === 'jurgen klopp' || n === 'jürgen klopp';
+}
+
+function isNevilleName(name) {
+  const n = (name || '').trim().toLowerCase();
+  return n === '内维尔' || n === 'neville' || n === 'gary neville';
+}
+
+function isCarragherName(name) {
+  const n = (name || '').trim().toLowerCase();
+  return n === '卡拉格' || n === 'carragher' || n === 'jamie carragher';
+}
+
+function isInzaghiName(name) {
+  const n = (name || '').trim().toLowerCase();
+  return n === '因扎吉' || n === 'inzaghi' || n === 'filippo inzaghi' || n === 'simone inzaghi' || n === '菲利波因扎吉' || n === '西蒙尼因扎吉';
+}
+
+function isPiqueName(name) {
+  const n = (name || '').trim().toLowerCase();
+  return n === '皮克' || n === '杰拉德皮克' || n === 'pique' || n === 'piqué' || n === 'gerard pique' || n === 'gerard piqué';
+}
+
+function isKakaName(name) {
+  const n = (name || '').trim().toLowerCase();
+  return n === '卡卡' || n === 'kaka' || n === 'kaká';
+}
+
 function unlockAchievementInState(state, id) {
   if (!id) return state;
   if (state?.achievementsUnlocked && state.achievementsUnlocked[id]) return state;
@@ -743,6 +799,7 @@ function buildSeasonSettlementEvent({ seasonYear, ranking, points, champion, ucl
     return {
       id: 'season_settlement',
       seasonYear,
+      ranking,
       champion: true,
       title: `第${seasonYear}赛季结算`,
       description: `你以第${ranking}名和${points}分结束了第${seasonYear}个赛季。冠军属于你。${uclLine}`,
@@ -753,6 +810,7 @@ function buildSeasonSettlementEvent({ seasonYear, ranking, points, champion, ucl
   return {
     id: 'season_settlement',
     seasonYear,
+    ranking,
     champion: false,
     title: `第${seasonYear}赛季结算`,
     description: `你以第${ranking}名和${points}分结束了第${seasonYear}个赛季。赛季结束，新的挑战即将开始。${uclLine}`,
@@ -926,6 +984,27 @@ function gameReducer(state, action) {
 
       if (team && team.id === 'arsenal' && isMourinhoName(action.payload.playerName)) {
         nextStartState = unlockAchievementInState(nextStartState, 'mourinho_arsenal');
+      }
+
+      if (team && team.id === 'ac_milan' && isMaldiniName(action.payload.playerName)) {
+        nextStartState = unlockAchievementInState(nextStartState, 'maldini_coach_milan');
+      }
+      if (team && team.id === 'ac_milan' && isNestaName(action.payload.playerName)) {
+        nextStartState = unlockAchievementInState(nextStartState, 'nesta_coach_milan');
+      }
+      if (team && team.id === 'ac_milan' && isKakaName(action.payload.playerName) && Array.isArray(baseBuffs) && baseBuffs.includes('milan_nesta')) {
+        nextStartState = unlockAchievementInState(nextStartState, 'kaka_milan_nesta');
+      }
+
+      if (team && team.id === 'real_madrid' && isPiqueName(action.payload.playerName)) {
+        nextStartState = unlockAchievementInState(nextStartState, 'pique_real_madrid');
+      }
+
+      if (isNevilleName(action.payload.playerName) || isCarragherName(action.payload.playerName)) {
+        nextStartState = unlockAchievementInState(nextStartState, 'neville_carragher_coach');
+      }
+      if (isInzaghiName(action.payload.playerName)) {
+        nextStartState = unlockAchievementInState(nextStartState, 'inzaghi_coach');
       }
 
       return nextStartState;
@@ -1199,7 +1278,7 @@ function gameReducer(state, action) {
             flavorEvent = {
                 id: 'istanbul_kiss_flavor',
                 title: '伊斯坦布尔之吻',
-                description: '你就是想亲曾经的队长，媒体们有什么可说的呢？',
+                description: '你就是想亲曾经的队长，媒体们有什么可说的呢？他们只能多拍几张照片而已。管理层对你很满意，更衣室也更加相信你了。即使你心里很清楚，哪怕是曾经如胶似漆的那些年，当转会通知下达的那一刻，也会被干净利落地一刀两断——虽然现在看起来是没断成的。',
                 effects: {}
             };
         } else if (optionDescription) {
@@ -1239,7 +1318,7 @@ function gameReducer(state, action) {
             nextCurrentEventAfterDecision = scandalEvent;
         }
 
-        return {
+        let nextStateAfterDecision = {
             ...state,
             stats: statsAfterDecision,
             decisionPoints: state.decisionPoints - 1, // Keep for backward compatibility if needed, but logic relies on count now
@@ -1257,6 +1336,17 @@ function gameReducer(state, action) {
             leagueOpponents: nextLeagueOpponentsAfterDecision,
             crossLeagueTacticsInflation: nextCrossLeagueTacticsInflation
         };
+
+        if (
+          state.currentTeam?.id === 'ac_milan' &&
+          decisionId === 'press_conference' &&
+          optionId === 'explode' &&
+          clampNumber(state.stats?.mediaSupport, 0, 100) > 80
+        ) {
+          nextStateAfterDecision = unlockAchievementInState(nextStateAfterDecision, 'milan_explode_high_media');
+        }
+
+        return nextStateAfterDecision;
 
     case 'NEXT_MONTH':
         let nextMonth = state.month + 1;
@@ -1377,7 +1467,7 @@ function gameReducer(state, action) {
         const leagueSize = getLeagueRoster(leagueIdThisMonth)?.length || 20;
         const monthInSeason = (state.quarter - 1) * 3 + state.month;
         const roundsThisMonth = getRoundsThisMonth(leagueSize, monthInSeason);
-        const awayPenalty = 0.5;
+        const awayPenalty = 0.35;
         const opponentBoost = state.opponentTacticsBoostThisMonth || 0;
         let nextLeagueSchedule = Array.isArray(state.leagueSchedule) ? state.leagueSchedule : [];
         let nextLeagueRoundCursor = state.leagueRoundCursor || 0;
@@ -1414,16 +1504,7 @@ function gameReducer(state, action) {
 
             let homePoints = 0;
             let awayPoints = 0;
-            if (homeEffWithBoost > awayEffWithBoost) {
-              homePoints = 3;
-              awayPoints = 0;
-            } else if (homeEffWithBoost < awayEffWithBoost) {
-              homePoints = 0;
-              awayPoints = 3;
-            } else {
-              homePoints = 1;
-              awayPoints = 1;
-            }
+            ({ homePoints, awayPoints } = sampleMatchPoints(homeEffWithBoost, awayEffWithBoost));
 
             if (homeIsPlayer) {
               pointsGainedThisMonth += homePoints;
@@ -1784,6 +1865,9 @@ function gameReducer(state, action) {
                 if (victory && state.uclWonSeasonYear === state.year) {
                     // Double crown (league + UCL) end screen: skip season settlement
                     nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'double_crown');
+                    if (state.currentTeam?.id === 'dortmund' && isKloppName(state.playerName)) {
+                        nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'klopp_dortmund_double_crown');
+                    }
                     statsAfterMonth.points = 0;
                     statsAfterMonth.tactics = Math.max(0, Math.min(10, (statsAfterMonth.tactics ?? 0) - 2));
                     statsAfterMonth.funds = Math.max(0, (statsAfterMonth.funds ?? 0) + 10);
@@ -2350,6 +2434,8 @@ function gameReducer(state, action) {
         let nextInjuryTutorialShown = state.injuryTutorialShown;
         let nextUclTutorialShown = state.uclTutorialShown;
 
+        let nextRelegationFinalRanking = state.relegationFinalRanking ?? null;
+
         let nextPendingGameState = state.pendingGameState;
         if (action.payload && action.payload.setPendingGameState) {
             nextPendingGameState = action.payload.setPendingGameState;
@@ -2367,6 +2453,28 @@ function gameReducer(state, action) {
           nextPendingGameState = 'double_crown';
           nextCurrentEvent = null;
           nextQueuedEvent = null;
+        }
+
+        const shouldTriggerRelegationResign = Boolean(
+          isResolvingSeasonSettlement &&
+          !nextPendingGameState &&
+          gameStateAfterEvent !== 'gameover' &&
+          typeof state.currentEvent?.ranking === 'number'
+        );
+
+        if (shouldTriggerRelegationResign) {
+          const leagueId = state.currentTeam?.leagueId || 'epl';
+          const leagueSize = getLeagueRoster(leagueId)?.length || 20;
+          const threshold = leagueSize === 18 ? 17 : 18;
+          const finalRank = state.currentEvent.ranking;
+          if (finalRank >= threshold) {
+            nextPendingGameState = 'relegation_resign';
+            nextRelegationFinalRanking = finalRank;
+            nextCurrentEvent = null;
+            nextQueuedEvent = null;
+          } else {
+            nextRelegationFinalRanking = null;
+          }
         }
 
         // After season 1 ends (state.year has advanced to 2), inject a fixed intro event before season 2 begins.
@@ -2432,6 +2540,7 @@ function gameReducer(state, action) {
             pendingSeasonReset: finalPendingSeasonReset,
             tabloidStalkingUnlocked: nextTabloidStalkingUnlocked,
             specialMechanicState: nextSpecialMechanicStateAfterEvent,
+            relegationFinalRanking: nextRelegationFinalRanking,
             leagueOpponents: resetLeagueOpponents,
             leagueOpponentCursor: resetLeagueOpponentCursor,
             leagueSchedule: resetLeagueSchedule,
@@ -2461,6 +2570,17 @@ function gameReducer(state, action) {
 
         if (gameStateAfterEvent === 'double_crown') {
           nextStateBase = unlockAchievementInState(nextStateBase, 'double_crown');
+          if (state.currentTeam?.id === 'dortmund' && isKloppName(state.playerName)) {
+            nextStateBase = unlockAchievementInState(nextStateBase, 'klopp_dortmund_double_crown');
+          }
+        }
+
+        if (nextStateBase.gameState === 'relegation_resign') {
+          nextStateBase = unlockAchievementInState(nextStateBase, 'relegation_resign');
+        }
+
+        if (state.currentTeam?.id === 'ac_milan' && isKakaName(state.playerName) && Array.isArray(nextStateBase.activeBuffs) && nextStateBase.activeBuffs.includes('milan_nesta')) {
+          nextStateBase = unlockAchievementInState(nextStateBase, 'kaka_milan_nesta');
         }
 
         return nextStateBase;

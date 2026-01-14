@@ -527,6 +527,39 @@ function App() {
       );
   }
 
+  if (state.gameState === 'relegation_resign') {
+    if (showOnboarding) setShowOnboarding(false);
+    const teamName = state.currentTeam?.name || '你的俱乐部';
+    const ranking = typeof state.relegationFinalRanking === 'number'
+      ? state.relegationFinalRanking
+      : (typeof state.estimatedRanking === 'number' ? state.estimatedRanking : 18);
+    const text = `赛季结束了，一代豪门${teamName}竟以第${ranking}的名次降级，震惊世界足坛！你不能再待下去了。哪怕管理层支持你，球队更衣室也还未爆炸，作为主教练，你还是难辞其咎。于是，在一个月黑风高的夜晚，你留下了辞职报告，拖着你的行李（也许还有你好吃懒做的一切罪证），灰溜溜地离开了${teamName}的基地。`;
+
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center p-3 text-black font-mono">
+        <AchievementToast toast={currentToast} />
+        <div className="text-center max-w-xl border-4 border-black p-4 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <h1 className="text-2xl font-bold mb-3 uppercase tracking-tighter">降级 · 自请辞职</h1>
+          <p className="text-sm mb-4 whitespace-pre-wrap leading-relaxed">{text}</p>
+          <div className="flex gap-2 justify-center">
+            <button
+              onClick={() => dispatch({ type: 'SET_GAME_STATE', payload: { gameState: 'start' } })}
+              className="bg-white text-black px-4 py-2 text-sm font-bold hover:bg-gray-100 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+            >
+              返回开始
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-black text-white px-4 py-2 text-sm font-bold hover:bg-gray-800 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+            >
+              重新开始
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen bg-[#e0e0e0] p-2 font-mono overflow-hidden">
       <AchievementToast toast={currentToast} />

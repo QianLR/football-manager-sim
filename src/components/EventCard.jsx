@@ -216,7 +216,7 @@ const EventCard = () => {
                                 <div className="flex flex-col gap-1">
                                     {[...decision.options,
                                       ...(decision.id === 'flirtation' && state.activeBuffs?.includes('istanbul_kiss')
-                                        ? [{ id: 'legend_flirt', text: '和名宿调情', description: '你就是想亲曾经的队长，媒体们有什么可说的呢？', effects: { boardSupport: 5, dressingRoom: 5, mediaSupport: 5 } }]
+                                        ? [{ id: 'legend_flirt', text: '和名宿调情', description: '你就是想亲曾经的队长，媒体们有什么可说的呢？他们只能多拍几张照片而已。管理层对你很满意，更衣室也更加相信你了。即使你心里很清楚，哪怕是曾经如胶似漆的那些年，当转会通知下达的那一刻，也会被干净利落地一刀两断——虽然现在看起来是没断成的。', effects: { boardSupport: 5, dressingRoom: 5, mediaSupport: 5 } }]
                                         : [])
                                     ].map(opt => {
                                     if (opt.condition && opt.condition.year && state.year < opt.condition.year) {

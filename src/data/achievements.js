@@ -88,6 +88,60 @@ export const ACHIEVEMENTS = [
     title: '被欢呼与被铭记的',
     hint: '带领球队，在同一赛季中取得双冠王',
     clue: '把两座最高奖杯同时收入囊中。'
+  },
+  {
+    id: 'maldini_coach_milan',
+    title: '你来了。',
+    hint: '使用“马尔蒂尼”的名字执教AC米兰。',
+    clue: '用那个姓氏回到圣西罗。'
+  },
+  {
+    id: 'nesta_coach_milan',
+    title: '咱家食堂还不错吧？',
+    hint: '使用“内斯塔”的名字执教AC米兰。',
+    clue: '换个身份，再来一次。'
+  },
+  {
+    id: 'milan_explode_high_media',
+    title: '彻头彻尾是马尔蒂尼的人',
+    hint: '你与红鸟势不两立，死战到底。',
+    clue: '当媒体几乎站在你这边时，你依然选择开战。'
+  },
+  {
+    id: 'neville_carragher_coach',
+    title: '诺贝尔一直奖',
+    hint: '行行好，让他回到Sky Sports吧。',
+    clue: '用一个熟悉的解说席名字去执教。'
+  },
+  {
+    id: 'inzaghi_coach',
+    title: '先说好，你是哥哥还是弟弟？',
+    hint: '使用“因扎吉”的名字担任教练。',
+    clue: '那个姓氏，总让人先停顿一下。'
+  },
+  {
+    id: 'klopp_dortmund_double_crown',
+    title: '未竟的梦想',
+    hint: '你曾有过那样的梦想。',
+    clue: '让黄黑与那位激情主帅一起触碰双冠。'
+  },
+  {
+    id: 'pique_real_madrid',
+    title: '伯纳乌的公敌',
+    hint: '全场八万人向你献唱同一首歌。',
+    clue: '让一个名字去到不该去的地方。'
+  },
+  {
+    id: 'relegation_resign',
+    title: '自请下堂',
+    hint: '你的战术水平堪比鲁尼，但你的良心又弥补了这一点。',
+    clue: '把球队带进降级区，然后选择离开。'
+  },
+  {
+    id: 'kaka_milan_nesta',
+    title: '米兰大小猪',
+    hint: '哥俩又来吃饭啦？',
+    clue: '用那个名字执教米兰，并在状态栏里看到某位名宿。'
   }
 ];
 
