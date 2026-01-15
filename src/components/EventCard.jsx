@@ -9,6 +9,7 @@ const EventCard = () => {
   const [expandedDecisionId, setExpandedDecisionId] = useState(null);
   const [infoDecisionId, setInfoDecisionId] = useState(null);
   const [confirmExplode, setConfirmExplode] = useState(null);
+  const [confirmEventOption, setConfirmEventOption] = useState(null);
   
   // Calculate remaining points dynamically
   const remainingPoints = state.decisionPoints;
@@ -410,6 +411,36 @@ const EventCard = () => {
 
   return (
     <div className="retro-box p-2 border-l-[6px] border-l-yellow-500">
+      {confirmEventOption && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
+          <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-sm w-full p-3">
+            <div className="font-bold text-sm font-mono mb-2">确认</div>
+            <div className="text-xs font-mono text-gray-800 leading-relaxed mb-3">
+              {confirmEventOption.confirmText || '你确定要这么做吗？'}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmEventOption(null)}
+                className="retro-btn text-xs py-1 px-2"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  const payload = confirmEventOption;
+                  setConfirmEventOption(null);
+                  if (payload && payload.opt) {
+                    dispatch({ type: 'RESOLVE_EVENT', payload: payload.opt });
+                  }
+                }}
+                className="retro-btn-primary text-xs py-1 px-2"
+              >
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <h3 className="text-base font-bold mb-2 font-mono uppercase">{currentEvent.title}</h3>
       <p className="text-sm mb-2 font-mono leading-relaxed">
           {replaceDynamicText(currentEvent.description)}
@@ -475,7 +506,13 @@ const EventCard = () => {
                 return (
                     <button
                         key={index}
-                        onClick={() => dispatch({ type: 'RESOLVE_EVENT', payload: opt })}
+                        onClick={() => {
+                          if (opt && opt.confirmText) {
+                            setConfirmEventOption({ opt, confirmText: opt.confirmText });
+                            return;
+                          }
+                          dispatch({ type: 'RESOLVE_EVENT', payload: opt });
+                        }}
                         className="retro-btn text-left flex justify-between items-center group py-2 px-2"
                     >
                         <span className="text-xs font-bold group-hover:underline">{optText}</span>

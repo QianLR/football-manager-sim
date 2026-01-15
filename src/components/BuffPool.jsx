@@ -109,10 +109,11 @@ const BuffPool = () => {
   const rawList = Array.isArray(activeBuffs) ? activeBuffs : [];
   const hiddenSet = new Set(Array.isArray(hiddenBuffs) ? hiddenBuffs : []);
   const isBayern = currentTeam?.id === 'bayern_munich';
+  const bayernCommitteeRemoved = Boolean(state.specialMechanicState?.bayernCommitteeRemoved);
 
   const filteredList = rawList
     .filter(id => !hiddenSet.has(id))
-    .filter(id => !(isBayern && id === 'turmoil'));
+    .filter(id => !(isBayern && !bayernCommitteeRemoved && id === 'turmoil'));
 
   const shouldCollapse = filteredList.length > 3;
   const visibleBuffs = useMemo(() => {

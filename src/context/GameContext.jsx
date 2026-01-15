@@ -28,7 +28,8 @@ const initialState = {
     canteenChangedThisSeason: { open: false, close: false },
     roofChangedThisSeason: { open: false, close: false },
     milanLegendsUsedThisSeason: [],
-    bayernDressingRoomRevealed: false
+    bayernDressingRoomRevealed: false,
+    bayernCommitteeRemoved: false
   },
   activeBuffs: [], // List of active buff/debuff IDs
   hiddenBuffs: [],
@@ -329,11 +330,32 @@ function hydrateLoadedState(raw) {
     next.specialMechanicState = { ...initialState.specialMechanicState };
   }
   if (next.specialMechanicState.bayernDressingRoomRevealed === undefined) next.specialMechanicState.bayernDressingRoomRevealed = false;
+  if (next.specialMechanicState.bayernCommitteeRemoved === undefined) next.specialMechanicState.bayernCommitteeRemoved = false;
 
   if (next.currentTeam?.id === 'bayern_munich') {
     if (!Array.isArray(next.activeBuffs)) next.activeBuffs = [];
-    if (!next.activeBuffs.includes('bayern_committee')) next.activeBuffs.push('bayern_committee');
+    if (!next.specialMechanicState.bayernCommitteeRemoved && !next.activeBuffs.includes('bayern_committee')) next.activeBuffs.push('bayern_committee');
     if (!next.activeBuffs.includes('bayern_history_proof')) next.activeBuffs.push('bayern_history_proof');
+  }
+
+  if (
+    next.currentTeam?.id === 'bayern_munich' &&
+    !next.specialMechanicState?.bayernCommitteeRemoved &&
+    next.currentEvent?.id !== 'bayern_committee_trust'
+  ) {
+    const hasFiveYearsAchievement = Boolean(next.achievementsUnlocked && next.achievementsUnlocked['bayern_5_years']);
+    const coachedFiveSeasons = Boolean((next.year ?? 1) >= 6 || hasFiveYearsAchievement);
+    if (coachedFiveSeasons) {
+      const after = next.currentEvent || next.queuedEvent || null;
+      const remainingQueued = next.currentEvent ? next.queuedEvent : null;
+      next.currentEvent = {
+        id: 'bayern_committee_trust',
+        title: '通知',
+        description: '您已赢得球员们的信任。',
+        options: [{ text: '确定', effects: { special_bayern_remove_committee: true }, nextEvent: after }]
+      };
+      next.queuedEvent = remainingQueued;
+    }
   }
   if (!Array.isArray(next.achievementToastQueue)) next.achievementToastQueue = [];
   if (next.opponentTacticsBoostThisMonth === undefined) next.opponentTacticsBoostThisMonth = 0;
@@ -1010,7 +1032,7 @@ function gameReducer(state, action) {
       if (team && team.id === 'bayern_munich') {
         baseBuffs.push('bayern_committee');
         baseBuffs.push('bayern_history_proof');
-        nextStartSpecialState = { ...nextStartSpecialState, bayernDressingRoomRevealed: false };
+        nextStartSpecialState = { ...nextStartSpecialState, bayernDressingRoomRevealed: false, bayernCommitteeRemoved: false };
       }
 
       const leagueId = team?.leagueId || 'epl';
@@ -1378,6 +1400,15 @@ function gameReducer(state, action) {
                 description: '你就是想亲曾经的队长，媒体们有什么可说的呢？他们只能多拍几张照片而已。管理层对你很满意，更衣室也更加相信你了。即使你心里很清楚，哪怕是曾经如胶似漆的那些年，当转会通知下达的那一刻，也会被干净利落地一刀两断——虽然现在看起来是没断成的。',
                 effects: {}
             };
+        } else if (decisionId === 'goat_head_sign') {
+            const decisionDef = (eventsData.activeDecisions || []).find(d => d.id === decisionId);
+            const decisionTitle = decisionDef?.title || '打羊头牌';
+            flavorEvent = {
+                id: 'decision_flavor_goat_head_sign',
+                title: decisionTitle,
+                description: '你和球员们一起打了牌。一些被隐瞒的故事在你面前缓缓揭开……',
+                effects: {}
+            };
         } else if (optionDescription) {
             const decisionDef = (eventsData.activeDecisions || []).find(d => d.id === decisionId);
             const decisionTitle = decisionDef?.title || '发布会';
@@ -1493,7 +1524,9 @@ function gameReducer(state, action) {
         let nextUclQualifiedNextSeason = state.uclQualifiedNextSeason;
 
         if (state.currentTeam?.id === 'bayern_munich') {
-          nextSpecialState = { ...nextSpecialState, bayernDressingRoomRevealed: false };
+          if (!state.specialMechanicState?.bayernCommitteeRemoved) {
+            nextSpecialState = { ...nextSpecialState, bayernDressingRoomRevealed: false };
+          }
         }
 
         // Monthly Canteen Check (Man Utd)
@@ -1528,7 +1561,9 @@ function gameReducer(state, action) {
             if (!nextActiveBuffs.includes('turmoil')) nextActiveBuffs.push('turmoil');
 
             if (state.currentTeam?.id === 'bayern_munich') {
-              statsAfterMonth.dressingRoom = Math.max(0, statsAfterMonth.dressingRoom - 5);
+              if (!state.specialMechanicState?.bayernCommitteeRemoved) {
+                statsAfterMonth.dressingRoom = Math.max(0, statsAfterMonth.dressingRoom - 5);
+              }
             }
 
             // 动乱期间管理层支持、话语权每个结算期都会下降，小报消息每个月+1
@@ -1836,12 +1871,24 @@ function gameReducer(state, action) {
         // Filter events based on conditions
         const validEvents = allEvents.filter(event => {
             if (!event.condition) return true;
+
+            if (event.condition.year && state.year < event.condition.year) {
+                return false;
+            }
             
             if (event.condition.type === 'decision_history') {
                 // Check if specific decision option was taken
                 // e.g. value="risk", detail="rival_coach" -> "risk_rival_coach"
                 const requiredDecision = `${event.condition.value}_${event.condition.detail}`;
                 return state.decisionHistory.includes(requiredDecision);
+            }
+
+            if (event.condition.type === 'min_stat') {
+                const key = event.condition.key;
+                const min = event.condition.value;
+                if (!key || typeof min !== 'number') return true;
+                const v = clampNumber(state.stats?.[key], 0, 100);
+                return v >= min;
             }
             return true;
         });
@@ -2147,7 +2194,7 @@ function gameReducer(state, action) {
             if (nextTeam.id === 'bayern_munich') {
               switchedBuffs.push('bayern_committee');
               switchedBuffs.push('bayern_history_proof');
-              switchedSpecialState = { ...switchedSpecialState, bayernDressingRoomRevealed: false };
+              switchedSpecialState = { ...switchedSpecialState, bayernDressingRoomRevealed: false, bayernCommitteeRemoved: false };
             }
 
             const switchLeagueId = nextTeam?.leagueId || 'epl';
@@ -2235,6 +2282,14 @@ function gameReducer(state, action) {
             }
         }
 
+        if (eventEffects.special_bayern_remove_committee) {
+            eventActiveBuffs = eventActiveBuffs.filter(b => b !== 'bayern_committee');
+            nextSpecialMechanicStateAfterEvent = {
+              ...(nextSpecialMechanicStateAfterEvent || {}),
+              bayernCommitteeRemoved: true
+            };
+        }
+
         let nextTabloidCountAfterEvent = state.tabloidCount;
         let pointsThisQuarterAfterEvent = state.pointsThisQuarter;
 
@@ -2259,7 +2314,7 @@ function gameReducer(state, action) {
         }
 
         Object.keys(eventEffects).forEach(key => {
-             if (key === 'special_rainbow_armband' || key === 'chance_tabloid' || key === 'tabloid' || key === 'points_bonus') return;
+             if (key === 'special_rainbow_armband' || key === 'special_bayern_remove_committee' || key === 'chance_tabloid' || key === 'tabloid' || key === 'points_bonus') return;
 
              const redirected = redirectNegativeStatEffect(statsAfterEvent, key, eventEffects[key]);
              const targetKey = redirected.key;
@@ -2742,6 +2797,24 @@ function gameReducer(state, action) {
                 }
                 nextCurrentEvent = chainHead;
             }
+        }
+
+        if (
+          isResolvingSeasonSettlement &&
+          state.currentTeam?.id === 'bayern_munich' &&
+          state.year >= 6 &&
+          !nextPendingGameState &&
+          !nextSpecialMechanicStateAfterEvent?.bayernCommitteeRemoved
+        ) {
+          const after = nextCurrentEvent || nextQueuedEvent || null;
+          const remainingQueued = nextCurrentEvent ? nextQueuedEvent : null;
+          nextCurrentEvent = {
+            id: 'bayern_committee_trust',
+            title: '通知',
+            description: '您已赢得球员们的信任。',
+            options: [{ text: '确定', effects: { special_bayern_remove_committee: true }, nextEvent: after }]
+          };
+          nextQueuedEvent = remainingQueued;
         }
 
         if (!nextCurrentEvent && nextPendingGameState) {

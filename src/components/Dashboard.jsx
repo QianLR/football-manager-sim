@@ -33,8 +33,9 @@ const Dashboard = () => {
 
   const isRoofClosed = currentTeam.id === 'real_madrid' && specialMechanicState?.roofClosed;
   const isBayern = currentTeam.id === 'bayern_munich';
+  const bayernCommitteeRemoved = Boolean(specialMechanicState?.bayernCommitteeRemoved);
   const dressingRoomRevealed = Boolean(specialMechanicState?.bayernDressingRoomRevealed);
-  const displayDressingRoom = isBayern && !dressingRoomRevealed ? 100 : stats.dressingRoom;
+  const displayDressingRoom = isBayern && !bayernCommitteeRemoved && !dressingRoomRevealed ? 100 : stats.dressingRoom;
 
   const expectationRanking = currentTeam.expectations?.ranking;
   const expectationText = expectationRanking === 1 ? '第1名' : `前${expectationRanking}名`;
@@ -190,7 +191,7 @@ const Dashboard = () => {
         <StatBar label="管理层支持" value={stats.boardSupport} color="blue" />
         <StatBar
           label={
-            isBayern ? (
+            isBayern && !bayernCommitteeRemoved ? (
               <span className="inline-flex items-center gap-1">
                 <span className="font-bold">更衣室稳定</span>
                 <button
