@@ -166,6 +166,156 @@ export const ACHIEVEMENTS = [
     title: '老鹿斑比',
     hint: '你来得也太早了吧？',
     clue: '在摸摸黑任命一位过于年轻的主教练。'
+  },
+  {
+    id: 'barca_5_years',
+    title: '不仅仅是家俱乐部，还是工地',
+    hint: '你已执教巴塞罗那超过五个赛季。也许你知道圣家族大教堂的竣工日期吗？',
+    clue: '在诺坎普等待时间的流逝。'
+  },
+  {
+    id: 'xavi_barca',
+    title: '一而再而',
+    hint: '使用“哈维”的名字执教巴塞罗那。',
+    clue: '从青训到救火。'
+  },
+  {
+    id: 'guardiola_barca',
+    title: 'tiki-taka！',
+    hint: '使用“瓜迪奥拉”的名字执教巴塞罗那。',
+    clue: '当你想复兴传控足球…'
+  },
+  {
+    id: 'cruyff_barca',
+    title: '郁金香教头',
+    hint: '你将他的名字从天上请下来，告诉大家足球到底该怎么踢。',
+    clue: '将一位荷兰人请回巴塞罗那。'
+  },
+  {
+    id: 'ancelotti_eye',
+    title: 'Eye',
+    hint: '安切洛蒂最初学习英语时不知道大小眼用英文怎么表达，现在他知道了。',
+    clue: 'O_o'
+  },
+  {
+    id: 'mourinho_chelsea',
+    title: 'Special one',
+    hint: '你又一次回到了斯坦福桥。',
+    clue: '在斯坦福桥三进宫。'
+  },
+  {
+    id: 'youth_muller_bayern',
+    title: '小将穆勒',
+    hint: '那是2008年普通的一天。',
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+  },
+  {
+    id: 'youth_gerrard_liverpool',
+    title: '最好的队长',
+    hint: '你见他伤痕累累往前走去，而他也从未轻言放弃。',
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+  },
+  {
+    id: 'youth_maldini_milan',
+    title: '年轻的接班人',
+    hint: '要想在米兰城立住脚跟，你的年龄最好要达到一周岁。',
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+  },
+  {
+    id: 'youth_jota_liverpool',
+    title: 'Forever 20',
+    hint: '我们曾无数次祈祷过时间倒流。',
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+  },
+  {
+    id: 'youth_ferguson_manutd',
+    title: '倒反天罡！',
+    hint: '我只能祝你一切好运…',
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+  },
+  {
+    id: 'youth_beckham_manutd',
+    title: '那个全英格兰最帅的人',
+    hint: '指的不仅是任意球。',
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+  },
+  {
+    id: 'youth_terry_chelsea',
+    title: '从一而终',
+    hint: '回来救救我们的后防线吧，队长…',
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+  },
+  {
+    id: 'youth_reus_dortmund',
+    title: '花有重开日…',
+    hint: '人无再少年。',
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+  },
+  {
+    id: 'youth_wilshere_arsenal',
+    title: '欢迎小威胁！',
+    hint: '还有多少人记得你的名字？',
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+  },
+  {
+    id: 'youth_mixer_deserved',
+    title: '实至名归',
+    hint: '实话实说吧，你是不是故意的？',
+    clue: '用特定的名字命名一个带“串子”负面特质的青训，并把他并入队。'
+  },
+  {
+    id: 'youth_raul_madridista',
+    title: '马德里主义者',
+    hint: '至于我，我是马德里主义者。',
+    clue: '用“劳尔”的名字命名皇家马德里的青训并入队。'
+  },
+  {
+    id: 'youth_inheritance',
+    title: '传承',
+    hint: '踢得好我来开车，踢不好你在车后跟着。',
+    clue: '用和主教练一样的名字命名青训并入队。'
+  },
+  {
+    id: 'youth_iniesta_croquette',
+    title: '油炸丸子',
+    hint: '你也想重建梦三神话吗？',
+    clue: '用“伊涅斯塔”或“小白”的名字命名巴塞罗那的青训并入队。'
+  },
+  {
+    id: 'youth_shortcoming',
+    title: '短板',
+    hint: '唯独你相信，他会是这支队伍的未来。',
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+  },
+  {
+    id: 'guardiola_man_city',
+    title: '曼彻斯特专属蓝月亮',
+    hint: '使用“瓜迪奥拉”的名字执教曼城。',
+    clue: '你知道在曼彻斯特要报谁的名字吧？'
+  },
+  {
+    id: 'mourinho_man_city',
+    title: '…请先冷静一下。',
+    hint: '所有人！保护你们的更衣室！',
+    clue: '那个闯入更衣室泼牛奶的人…'
+  },
+  {
+    id: 'man_city_5_years',
+    title: '伊蒂哈德门口的石狮子',
+    hint: '您已执教曼城超过五个赛季。你要做伊蒂哈德门口的石狮子吗？',
+    clue: '你要做伊蒂哈德门口的石狮子吗？'
+  },
+  {
+    id: 'guardiola_man_city_double_crown',
+    title: 'city不city？',
+    hint: '使“瓜迪奥拉”的名字在曼城夺得双冠王。',
+    clue: '用他的名字带领蓝月夺得双冠。'
+  },
+  {
+    id: 'three_sticks',
+    title: '三棍客',
+    hint: '你的武力值让荷兰人也甘拜下风！',
+    clue: '不要小看三根棍子之间的羁绊啊…'
   }
 ];
 

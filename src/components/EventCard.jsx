@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useGame } from '../context/GameContext';
+import { useGame } from '../context/GameContextInstance';
 import eventsData from '../data/events.json';
 
 const EventCard = () => {
@@ -26,6 +26,7 @@ const EventCard = () => {
       tactics: '技战术水平',
       injuryRisk: '伤病风险',
       tabloid: '小报消息',
+      youth_free_points: '自由属性点',
       points_bonus: '积分',
       set_board_support_to_1: '管理层支持变为1',
       chance_tabloid: '50%概率小报消息+1',
@@ -97,6 +98,10 @@ const EventCard = () => {
             return false;
         }
 
+        if (state.activeBuffs?.includes('union_wood_iron_stun') && d.id === 'find_mole') {
+            return false;
+        }
+
         if (d.condition && d.condition.year && state.year < d.condition.year) {
             return false;
         }
@@ -146,7 +151,7 @@ const EventCard = () => {
     };
 
     return (
-      <div className="retro-box p-2">
+      <div className="retro-box p-2" data-onboard-id="monthly_decisions">
         {confirmExplode && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
             <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-sm w-full p-3">
@@ -216,9 +221,12 @@ const EventCard = () => {
              }
 
              const isExpanded = expandedDecisionId === decision.id;
+             const onboardDecisionId = decision.id === 'training'
+               ? 'decision_training'
+               : (decision.id === 'flirtation' ? 'decision_flirtation' : null);
 
              return (
-                <div key={decision.id} className="border-2 border-black p-2 bg-gray-50">
+                <div key={decision.id} className="border-2 border-black p-2 bg-gray-50" data-onboard-id={onboardDecisionId || undefined}>
                     <div className="flex items-start gap-2">
                         <button
                             onClick={() => setExpandedDecisionId(isExpanded ? null : decision.id)}
@@ -293,10 +301,11 @@ const EventCard = () => {
 
                                 const baseRequiredAuthority = decision.condition && decision.condition.authority;
                                 const costsFunds = optEffects && optEffects.funds < 0;
+                                const ignoreFundsAuthority = Boolean(state.activeBuffs?.includes('special_one'));
                                 const requiredAuthority = costsFunds
                                   ? Math.max(baseRequiredAuthority || 0, 70)
                                   : (baseRequiredAuthority || 0);
-                                const lowAuthority = requiredAuthority && state.stats.authority < requiredAuthority;
+                                const lowAuthority = !ignoreFundsAuthority && requiredAuthority && state.stats.authority < requiredAuthority;
                                 const insufficientFunds = costsFunds && state.stats.funds < Math.abs(optEffects.funds);
                                 const limitReached = remainingPoints <= 0;
                                 const explodeAlreadyUsed = (decision.id === 'press_conference' && opt.id === 'explode' && state.explodeUsedThisQuarter);
@@ -340,10 +349,11 @@ const EventCard = () => {
                             (() => {
                                 const requiredAuthority = decision.condition && decision.condition.authority;
                                 const costsFunds = decision.effects && decision.effects.funds < 0;
+                                const ignoreFundsAuthority = Boolean(state.activeBuffs?.includes('special_one'));
                                 const effectiveRequiredAuthority = (costsFunds && !(decision.id === 'goat_head_sign' && currentTeam?.id === 'bayern_munich'))
                                   ? Math.max(requiredAuthority || 0, 70)
                                   : requiredAuthority;
-                                const lowAuthority = effectiveRequiredAuthority && state.stats.authority < effectiveRequiredAuthority;
+                                const lowAuthority = !ignoreFundsAuthority && effectiveRequiredAuthority && state.stats.authority < effectiveRequiredAuthority;
                                 const insufficientFunds = costsFunds && state.stats.funds < Math.abs(decision.effects.funds);
                                 const limitReached = remainingPoints <= 0;
                                 const disabled = limitReached || lowAuthority || insufficientFunds;

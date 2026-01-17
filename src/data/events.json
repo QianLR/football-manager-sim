@@ -36,6 +36,13 @@
       "effects": { "dressingRoom": -10, "boardSupport": 2, "authority": 5, "mediaSupport": -2 }
     },
     {
+      "id": "dressing_room_full_brawl",
+      "title": "在更衣室上演全武行",
+      "type": "dressing_room",
+      "condition": { "buff": "union_wood_iron_stun" },
+      "effects": { "dressingRoom": -15, "authority": 15, "funds": 5 }
+    },
+    {
       "id": "flirtation",
       "title": "调情",
       "type": "risk",
@@ -304,6 +311,84 @@
         "effects": { "mediaSupport": -10 }
       },
       {
+        "id": "union_weapon_1",
+        "title": "更衣室武器",
+        "description": "更衣室里爆发了一场冲突，三个前锋一个中场打了起来，你赶紧站出去严正肃清。他们骂骂咧咧地走了，你抹了一把头上的冷汗。突然，有个队员偷偷摸摸地拉住你，对你说那个中场有些不太对劲，他曾看到对方在更衣室柜子里藏了什么东西。你赶紧去调查，竟在那人的更衣室柜子里发现了一根电棍！你的决定是…",
+        "revealAfterChoice": true,
+        "options": [
+          {
+            "id": "take",
+            "text": "收走这根电棍，据为己有",
+            "outcomeText": "你获得了一根电棍！它会有什么用呢？你暂时一无所知，但你把它带在了身上。球员们不敢触犯你的权威，只能灰溜溜地离开了。",
+            "effects": {},
+            "grantBuff": "union_stun_gun"
+          },
+          {
+            "id": "destroy",
+            "text": "收走这根电棍，赶紧销毁",
+            "outcomeText": "你将电棍折成两段,扔进了垃圾桶。那个中场惊恐地看着你,什么都没敢说。更衣室恢复了平静,仿佛什么都没发生过,但你总觉得少了点什么...",
+            "effects": {}
+          }
+        ]
+      },
+      {
+        "id": "union_weapon_2",
+        "title": "电棍与铁棍",
+        "description": "一次比赛失败了，中锋错失了两个绝佳机会。你的替补中锋对他嘲讽地说：“[联赛名]射手榜榜一球员，你再不进球就要被卖掉了。”中锋勃然大怒，与他拧打起来。没过多久，你的边锋也加入了战场，他是个非常热爱冲突的人。只见他从更衣室柜子里抽出一根铁棍，举起手臂，转眼间就向替补球员打去！千钧一发之际，你需要赶快作出决定…",
+        "condition": { "buff": "union_stun_gun" },
+        "revealAfterChoice": true,
+        "options": [
+          {
+            "id": "fight",
+            "text": "拿出电棍回击！",
+            "outcomeText": "千钧一发之际,你从怀里掏出电棍，一个箭步冲上前，电光火石间击中了边锋手中的铁棍！铁棍通电，边锋迅速松手，铁棍“哐当”一声掉在地上，全场鸦雀无声。你弯腰捡起铁棍，左手电棍右手铁棍，环视四周：\"还有谁？\"",
+            "effects": {},
+            "removeBuffs": ["union_stun_gun"],
+            "grantBuff": "union_stun_iron"
+          },
+          {
+            "id": "run",
+            "text": "赶紧远离战场",
+            "outcomeText": "你吓得立刻往后退，铁棍落下来但偏了，砸到地上。更衣室躁动起来，大家推推搡搡地往外跑。",
+            "effects": { "injuryRisk": 1, "dressingRoom": -15 }
+          }
+        ]
+      },
+      {
+        "id": "union_weapon_3",
+        "title": "木棍绝缘",
+        "description": "经过上两次更衣室的冲突之后，你明白了要将电棍时常握在手里的道理，你的球员也对你心有余悸。这夜，月黑风高，你握着电棍下班，发现两个球员正在密谋如何做掉你。你从背后听到，他们决定做一根木棍来抵御你的电棍，因为木棍绝缘！你没来得及做出什么反应，他们就勾肩搭背地走了。你决定…",
+        "condition": { "buff": "union_stun_iron", "notTeamIds": ["arsenal", "man_utd"] },
+        "revealAfterChoice": true,
+        "options": [
+          {
+            "id": "take",
+            "text": "将铁棍也携带在身上，一旦遇到木棍，就用铁棍回击",
+            "outcomeText": "某天训练结束后，两个密谋的球员果然拿着木棍堵在了更衣室门口，但当他们看到你掏出铁棍时，脸都绿了。你冷笑一声，挥舞着双棍，如入无人之境。从这以后，更衣室彻底变成了你的天下。",
+            "effects": {},
+            "removeBuffs": ["union_stun_iron"],
+            "grantBuff": "union_wood_iron_stun"
+          }
+        ]
+      },
+      {
+        "id": "union_weapon_4",
+        "title": "意外的木棍",
+        "description": "经过上两次更衣室的冲突之后，你明白了要将电棍时常握在手里的道理，你的球员也对你心有余悸。这夜，月黑风高，你加班结束，决定在离开基地前检索一下更衣室的柜子。所有球员的柜子都很正常，但你居然在一个不起眼的角落里发现了一根木棍！木棍已经落满灰了。你决定…",
+        "condition": { "buff": "union_stun_iron", "teamIds": ["arsenal", "man_utd"] },
+        "revealAfterChoice": true,
+        "options": [
+          {
+            "id": "pick",
+            "text": "捡起木棍。",
+            "outcomeText": "你苦笑一声，将木棍夹在腋下，走了出去。现在你拥有了三件武器：电棍、铁棍、木棍。从此，[俱乐部名字]再无一人敢违背你的命令。",
+            "effects": {},
+            "removeBuffs": ["union_stun_iron"],
+            "grantBuff": "union_wood_iron_stun"
+          }
+        ]
+      },
+      {
         "id": "cam_form_drop",
         "title": "中场状态断崖下滑",
         "description": "你队里的进攻型中场状态断崖式下滑，媒体纷纷报道。你忧心忡忡，找他谈话，他态度诚恳，承认是自己的家庭问题导致的状态下滑。你感觉到继续使用他会有中场失控的风险，但他平时训练状态良好。你决定：",
@@ -461,6 +546,132 @@
             "effects": {},
             "outcomeText": "你赶紧关闭了手机，闭上眼睛。把自己变成傻子可不是什么好事……"
           }
+        ]
+      }
+    ],
+    "youth": [
+      {
+        "id": "youth_1",
+        "title": "菠萝披萨风波",
+        "description": "你收到某小报记者的消息，你的青训球员[青训名字]在某饭店内吃菠萝披萨。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "let_eat", "text": "让他吃吧", "effects": { "dressingRoom": -15, "youth_free_points": 1 }, "outcomeText": "第二天，意大利籍球员集体罢训抗议。" },
+          { "id": "warn_buyout", "text": "警告他不准吃,然后买断记者的消息", "effects": { "funds": -5 }, "outcomeText": "你掏出一笔钱塞给记者,然后把青训球员叫来训了一顿。消息没有传出去,世界恢复了平静。" }
+        ]
+      },
+      {
+        "id": "youth_2",
+        "title": "更衣室推搡",
+        "description": "一次更衣室冲突中，你的青训球员[青训名字]只是路过，但被推搡了一把。他感到很不服气，找到你希望你做主。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "endure", "text": "只是被推一把,忍一忍吧", "effects": { "dressingRoom": 5 }, "outcomeText": "\"别计较这些小事。\"你拍拍他的肩膀。" },
+          { "id": "stand_up", "text": "找到冲突的队员,为他出头", "effects": { "dressingRoom": -5, "youth_free_points": 1 }, "outcomeText": "你的护短让许多人开始抱怨，幸好你的青训球员完全理解你的用心。" }
+        ]
+      },
+      {
+        "id": "youth_3",
+        "title": "出售传闻（同联赛）",
+        "description": "管理层找到你，告诉你他们想要出售青训球员[青训名字]给同联赛的对手，以换取更高的资金。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "rage", "text": "把管理层大骂一顿,告诉他们别来管你的球员", "effects": { "boardSupport": -10, "youth_free_points": 1 }, "outcomeText": "\"他是我的球员!你们少管!\"管理层被你骂得灰头土脸。" },
+          { "id": "silent", "text": "不说话,装没听见", "effects": { "funds": -5 }, "outcomeText": "你沉默地离开会议室。管理层面面相觑,最后放弃了这个提议,但你损失了一笔转会预算。" }
+        ]
+      },
+      {
+        "id": "youth_4",
+        "title": "国家队异地恋",
+        "description": "一次国际比赛日后，你的青训球员[青训名字]犹豫地告诉你，他在国家队和队友谈上了恋爱。这个队友是不同联赛的人。你看他并没有分手的意图。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "break", "text": "棒打鸳鸯", "effects": { "dressingRoom": -5, "authority": 5 }, "outcomeText": "\"分手,这是命令!\"你的强硬让他当场红了眼眶。全队噤声,但没人再敢挑战你的权威。" },
+          { "id": "your_choice", "text": "\"这是你自己的决定。\"", "effects": { "youth_free_points": 1 }, "outcomeText": "\"这是你自己的决定，这是你的人生。怪罪你？不，我不会。我也有过这样的经历。在你20岁时你总会觉得一段关系又重要又可以轻易放弃，我不好说它是否真的那么重要，但它也确实不该被轻易放弃。\"" }
+        ]
+      },
+      {
+        "id": "youth_5",
+        "title": "出售传闻（不同联赛）",
+        "description": "管理层找到你，告诉你他们想要出售青训球员[青训名字]给不同联赛的对手，以换取一些资金。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "rage", "text": "把管理层大骂一顿,告诉他们别来管你的球员", "effects": { "boardSupport": -10, "youth_free_points": 1 }, "outcomeText": "\"他不是你们的商品!\"你拍桌而起。管理层悻悻离去,但那个孩子发誓要为你踢到退役。" },
+          { "id": "silent", "text": "不说话,装没听见", "effects": { "funds": -2 }, "outcomeText": "你默默摇头走出办公室。转会最终没有发生,但预算又少了一笔。" }
+        ]
+      },
+      {
+        "id": "youth_6",
+        "title": "国家队恋爱（争冠对手）",
+        "description": "一次国际比赛日后，你的青训球员[青训名字]犹豫地告诉你，他在国家队和队友谈上了恋爱。这个队友是同联赛的人，对方在一个和你们争冠的球队。你看他并没有分手的意图。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "break", "text": "棒打鸳鸯", "effects": { "dressingRoom": -5, "authority": 5 }, "outcomeText": "\"他是我们的敌人!立刻分手!\"" },
+          { "id": "your_choice", "text": "\"这是你自己的决定。\"", "effects": { "youth_free_points": 1 }, "outcomeText": "\"爱情和事业，你自己选择。\"" }
+        ]
+      },
+      {
+        "id": "youth_7",
+        "title": "超速与出轨",
+        "excludeYouthNames": ["若塔"],
+        "description": "某天你刚来到基地，就看到大家忧心忡忡。一番打听之下，你得知是你的青训球员[青训名字]超速被抓。如果只是这样也就算了，但他超速的时候车上还带着他的对象。如果只是这样也就算了，但他还带着和公开的对象不一样的那个对象！你得赶紧处理此事了，一场发布会在所难免。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "speed", "text": "专注于超速的问题", "effects": { "mediaSupport": -5, "dressingRoom": -5 }, "outcomeText": "\"我们谴责超速行为。\"你避重就轻,但媒体和球员都看穿了你的掩饰,嘲笑声四起。" },
+          { "id": "partner", "text": "专注于对象的问题", "effects": { "mediaSupport": -10 }, "outcomeText": "\"我们不容忍不忠行为!\"你的道德姿态让媒体疯狂攻击:\"那超速呢?你在回避什么?\"" },
+          { "id": "talk", "text": "关于[青训名字]是否会进入下场比赛的首发，我们还需要确定他的情况，我们有很多优秀的球员，所以每个人都有可能首发，也有可能不首发，至于到底要不要首发，我们还需要看具体的情况，具体的情况就是和到时候的具体情况结合起来的情况。什么？超速？请不要对我们球员的私生活有过多打听。", "effects": { "youth_free_points": 1 }, "outcomeText": "你的一番云里雾里的发言让记者们彻底晕了。发布会结束后,所有人都不知道你到底说了什么,但事件竟然就这么过去了。" }
+        ]
+      }
+    ],
+    "youthMixer": [
+      {
+        "id": "youth_mixer_1",
+        "title": "唱死敌队歌",
+        "description": "你收到某小报记者的消息，你的青训球员[青训名字]在公开场合大唱死敌队歌。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "buyout", "text": "用钱收买记者,回去教训球员", "effects": { "funds": -10, "youth_free_points": 1 }, "outcomeText": "记者拿钱走人,你把球员叫来骂了一顿，他连连保证再也不犯。" },
+          { "id": "media_educate", "text": "不管,让媒体教育球员", "effects": { "mediaSupport": -15 }, "outcomeText": "第二天头条:\"青训叛徒高唱敌歌!\"球员被骂到关闭社交账号,媒体也开始质疑你的管理能力。" }
+        ]
+      },
+      {
+        "id": "youth_mixer_2",
+        "title": "想去大巴黎",
+        "description": "你收到某小报记者的消息，你的青训球员[青训名字]在球迷面前说自己最想去的球队其实是大巴黎。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "buyout", "text": "用钱收买记者,回去教训球员", "effects": { "funds": -10, "youth_free_points": 1 }, "outcomeText": "消息被压下,你把那小子训得抬不起头。他发誓再也不乱说话。" },
+          { "id": "media_educate", "text": "不管,让媒体教育球员", "effects": { "mediaSupport": -15 }, "outcomeText": "\"青训白眼狼梦想大巴黎!\"媒体疯狂报道,球迷在他社交账号下刷屏谩骂。" }
+        ]
+      },
+      {
+        "id": "youth_mixer_3",
+        "title": "都不喜欢",
+        "description": "你收到某小报记者的消息，你的青训球员[青训名字]在一次采访中，面对“你喜欢xx还是xx的问题”用“都不喜欢”来应对。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "buyout", "text": "用钱收买记者,回去教训球员", "effects": { "funds": -10, "youth_free_points": 1 }, "outcomeText": "记者收钱删稿,你把那个口无遮拦的小子骂了一遍。幸好他明白你是在保护他。" },
+          { "id": "media_educate", "text": "不管,让媒体和疯狂的球迷们教育球员", "effects": { "mediaSupport": -25 }, "outcomeText": "两边球迷同时炸了,给他发死亡威胁。媒体铺天盖地报道\"史上最狂青训\",顺便把你描绘成\"失职的纵容者\"。" }
+        ]
+      },
+      {
+        "id": "youth_mixer_4",
+        "title": "护腿板与球衣",
+        "description": "你收到某小报记者的消息，你的青训球员[青训名字]被拍到用xx球星的护腿板，又在家里悬挂另一位xx球星的球衣。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "protect", "text": "把他保护起来,让他先别接受任何媒体采访,并把护腿板和球衣都收好", "effects": { "funds": -5, "youth_free_points": 1 }, "outcomeText": "你把他按在板凳好几天，花钱平息舆论。" },
+          { "id": "media_educate", "text": "不管,让媒体和疯狂的球迷们教育球员", "effects": { "mediaSupport": -25 }, "outcomeText": "两派球迷打起了键盘大战,青训球员的社交账号被攻陷。媒体批评你\"放任不管\",你的管理能力遭受质疑。" }
+        ]
+      },
+      {
+        "id": "youth_mixer_5",
+        "title": "争议名宿合影",
+        "description": "你收到某小报记者的消息，你的青训球员[青训名字]被拍到和某位俱乐部名宿合影，但是这位名宿并不是你们俱乐部的名宿，他在某个时候转会了你们的死敌球队，被骂得很惨。你决定：",
+        "revealAfterChoice": true,
+        "options": [
+          { "id": "warn", "text": "把他喊过来,耳提面命地告诉他在公共场合不要这么做", "effects": { "mediaSupport": -5, "youth_free_points": 1 }, "outcomeText": "\"以后长点心!\"你严肃地警告他，他连连点头。媒体略有微词,但很快就过去了。" },
+          { "id": "media_educate", "text": "不管,让媒体教育球员", "effects": { "mediaSupport": -15 }, "outcomeText": "\"青训球员拜见叛徒!\"小报疯狂报道,球迷怒斥他\"忘本\"。媒体连带着批评你:\"连这都管不了?\"" }
         ]
       }
     ],

@@ -43,6 +43,27 @@
     "specialMechanic": "bernabeu_roof"
   },
   {
+    "id": "fc_barcelona",
+    "name": "巴塞罗那",
+    "difficulty": "Hard",
+    "description": "虽然你的话语权不低，但球队非常贫穷，没有可用资金，每赛季还要讨钱，媒体也被隔壁掌控。但你有宝藏青训营拉玛西亚。青训的效果可能超乎你的想象，也可能使你疑窦丛生。",
+    "leagueId": "laliga",
+    "leagueSize": 20,
+    "leagueIndex": 1,
+    "initialStats": {
+      "boardSupport": 100,
+      "dressingRoom": 100,
+      "mediaSupport": 40,
+      "authority": 70,
+      "funds": 0,
+      "tactics": 7,
+      "points": 0
+    },
+    "expectations": {
+      "ranking": 1
+    }
+  },
+  {
     "id": "arsenal",
     "name": "阿森纳",
     "difficulty": "Easy",
@@ -151,11 +172,31 @@
     "specialMechanic": "bayern_committee"
   },
   {
+    "id": "man_city",
+    "name": "曼城",
+    "difficulty": "Normal",
+    "description": "充足的资金，充足的话语权，顶尖的技战术水平，活跃的媒体，没有什么比这更好的了！当然了，如果每季度的调情选择能掌控在自己手里，那就更好了。",
+    "leagueId": "epl",
+    "leagueSize": 20,
+    "leagueIndex": 2,
+    "initialStats": {
+      "boardSupport": 100,
+      "dressingRoom": 100,
+      "mediaSupport": 80,
+      "authority": 65,
+      "funds": 100,
+      "tactics": 7,
+      "points": 0
+    },
+    "expectations": {
+      "ranking": 1
+    }
+  },
+  {
     "id": "liverpool",
     "name": "利物浦",
-    "difficulty": "Hard",
-    "description": "You’ll never walk alone。",
-    "hidden": true,
+    "difficulty": "Easy",
+    "description": "红军对主教练很有耐心，他们愿意陪你创造奇迹，即使是在没有资金的困境下。球队期望着前三名的水准。媒体环境不错，话语权较高。",
     "leagueId": "epl",
     "leagueSize": 20,
     "leagueIndex": 5,
@@ -164,12 +205,12 @@
       "dressingRoom": 100,
       "mediaSupport": 60,
       "authority": 60,
-      "funds": 25,
+      "funds": 5,
       "tactics": 7,
       "points": 0
     },
     "expectations": {
-      "ranking": 4
+      "ranking": 3
     }
   }
 ]

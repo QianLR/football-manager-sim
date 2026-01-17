@@ -7,7 +7,7 @@ export function readGlobalAchievements() {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return {};
     return parsed;
-  } catch (e) {
+  } catch {
     return {};
   }
 }
@@ -15,7 +15,7 @@ export function readGlobalAchievements() {
 export function writeGlobalAchievements(map) {
   try {
     localStorage.setItem(GLOBAL_ACHIEVEMENTS_KEY, JSON.stringify(map || {}));
-  } catch (e) {
+  } catch {
     // ignore
   }
 }

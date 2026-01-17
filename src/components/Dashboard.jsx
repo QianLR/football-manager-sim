@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { useGame } from '../context/GameContext';
+import { useGame } from '../context/GameContextInstance';
 
-const StatBar = ({ label, value, max = 100, color = 'blue', showBar = true }) => {
+const StatBar = ({ label, value, max = 100, showBar = true }) => {
   const percentage = max ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
   
   return (
@@ -22,8 +22,8 @@ const StatBar = ({ label, value, max = 100, color = 'blue', showBar = true }) =>
   );
 };
 
-const Dashboard = () => {
-  const { state, dispatch } = useGame();
+const Dashboard = ({ onOpenYouthAcademy }) => {
+  const { state } = useGame();
   const { stats, currentTeam, month, quarter, year, tabloidCount, playerName, estimatedRanking, specialMechanicState } = state;
 
   const [infoKey, setInfoKey] = useState(null);
@@ -44,6 +44,10 @@ const Dashboard = () => {
   const leagueSchedule = Array.isArray(state.leagueSchedule) ? state.leagueSchedule : [];
   const leagueRoundCursor = typeof state.leagueRoundCursor === 'number' ? state.leagueRoundCursor : 0;
   const leagueMatchResults = (state.leagueMatchResults && typeof state.leagueMatchResults === 'object') ? state.leagueMatchResults : {};
+
+  const hasYouthFreePoints = Array.isArray(state.youthSquadPlayers)
+    ? state.youthSquadPlayers.some(p => (p && typeof p === 'object' && (p.freePoints ?? 0) > 0))
+    : false;
 
   const idToName = new Map();
   idToName.set(currentTeam.id, currentTeam.name);
@@ -150,103 +154,127 @@ const Dashboard = () => {
           <div className="mt-1">
             <button
               onClick={() => setShowSchedule(true)}
+              data-onboard-id="schedule_button"
               className="retro-btn text-[11px] py-1 px-2"
             >
               查看赛程
             </button>
           </div>
         </div>
-        <div className="text-xs font-mono text-right pr-14">
+        <div className="text-xs font-mono text-right pr-14 mt-6">
           <div>第{year}年 第{quarter}季度 第{month}个月</div>
-          <div>期望: {expectationText}</div>
+          <div data-onboard-id="expectation">期望: {expectationText}</div>
           {isRoofClosed && (
             <div className="text-[11px] text-gray-800 font-mono">🏟️顶棚关闭</div>
           )}
         </div>
       </div>
 
-      <div className="mb-2 flex items-center justify-end gap-2">
-        <div className="text-[11px] text-gray-700 font-mono">手动存档:</div>
-        <button
-          onClick={() => dispatch({ type: 'REQUEST_MANUAL_SAVE', payload: { slot: 1 } })}
-          className="retro-btn text-[11px] py-1 px-2"
-        >
-          存1
-        </button>
-        <button
-          onClick={() => dispatch({ type: 'REQUEST_MANUAL_SAVE', payload: { slot: 2 } })}
-          className="retro-btn text-[11px] py-1 px-2"
-        >
-          存2
-        </button>
-        <button
-          onClick={() => dispatch({ type: 'REQUEST_MANUAL_SAVE', payload: { slot: 3 } })}
-          className="retro-btn text-[11px] py-1 px-2"
-        >
-          存3
-        </button>
-      </div>
-      
       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-        <StatBar label="管理层支持" value={stats.boardSupport} color="blue" />
-        <StatBar
-          label={
-            isBayern && !bayernCommitteeRemoved ? (
+        <div data-onboard-id="stat_board_support">
+          <StatBar label="管理层支持" value={stats.boardSupport} color="blue" />
+        </div>
+        <div data-onboard-id="stat_dressing_room">
+          <StatBar
+            label={
+              isBayern && !bayernCommitteeRemoved ? (
+                <span className="inline-flex items-center gap-1">
+                  <span className="font-bold">更衣室稳定</span>
+                  <button
+                    onClick={() => setInfoKey('bayern_dressingRoom')}
+                    className="retro-btn text-[10px] py-0 px-1"
+                  >
+                    ?
+                  </button>
+                </span>
+              ) : (
+                '更衣室稳定'
+              )
+            }
+            value={displayDressingRoom}
+            color="blue"
+          />
+        </div>
+        <div data-onboard-id="stat_media_support">
+          <StatBar
+            label={
               <span className="inline-flex items-center gap-1">
-                <span className="font-bold">更衣室稳定</span>
+                <span className="font-bold">媒体支持</span>
                 <button
-                  onClick={() => setInfoKey('bayern_dressingRoom')}
+                  onClick={() => setInfoKey('mediaSupport')}
                   className="retro-btn text-[10px] py-0 px-1"
                 >
                   ?
                 </button>
               </span>
-            ) : (
-              '更衣室稳定'
-            )
-          }
-          value={displayDressingRoom}
-          color="blue"
-        />
-        <StatBar
-          label={
-            <span className="inline-flex items-center gap-1">
-              <span className="font-bold">媒体支持</span>
-              <button
-                onClick={() => setInfoKey('mediaSupport')}
-                className="retro-btn text-[10px] py-0 px-1"
-              >
-                ?
-              </button>
+            }
+            value={stats.mediaSupport}
+            color="blue"
+          />
+        </div>
+        <div data-onboard-id="stat_authority">
+          <StatBar
+            label={
+              <span className="inline-flex items-center gap-1">
+                <span className="font-bold">话语权</span>
+                <button
+                  onClick={() => setInfoKey('authority')}
+                  className="retro-btn text-[10px] py-0 px-1"
+                >
+                  ?
+                </button>
+              </span>
+            }
+            value={stats.authority}
+            color="blue"
+          />
+        </div>
+        <div className="mb-1">
+          <div className="flex items-center justify-between text-[11px] mb-0.5 font-mono">
+            <span className="inline-flex items-baseline gap-1" data-onboard-id="stat_funds">
+              <span className="font-bold">球队资金</span>
+              <span>{stats.funds}</span>
             </span>
-          }
-          value={stats.mediaSupport}
-          color="blue"
-        />
-        <StatBar
-          label={
+            {state.youthAcademyUnlocked ? (
+              <div className="flex flex-col items-end">
+                <button
+                  onClick={() => onOpenYouthAcademy && onOpenYouthAcademy()}
+                  className="retro-btn text-[11px] py-0.5 px-2"
+                  data-onboard-id="youth_button"
+                >
+                  {state.currentTeam?.id === 'fc_barcelona' ? '拉玛西亚' : '青训'}
+                </button>
+                {hasYouthFreePoints ? (
+                  <div className="mt-0.5 flex items-center gap-1">
+                    <span className="inline-block w-2 h-2 bg-red-600 border border-black" />
+                    <span className="inline-flex items-center px-1 py-[1px] text-[10px] leading-none font-mono bg-white text-black border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] whitespace-nowrap">
+                      可加点
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="text-[11px] font-mono text-gray-700" data-onboard-id="trophy_display">
             <span className="inline-flex items-center gap-1">
-              <span className="font-bold">话语权</span>
-              <button
-                onClick={() => setInfoKey('authority')}
-                className="retro-btn text-[10px] py-0 px-1"
-              >
-                ?
-              </button>
+              <span>🏆</span>
+              <span>联赛 {Array.isArray(state.leagueChampionYears) ? state.leagueChampionYears.length : 0}</span>
+              <span className="text-gray-400">|</span>
+              <span>欧冠 {Array.isArray(state.uclChampionYears) ? state.uclChampionYears.length : 0}</span>
             </span>
-          }
-          value={stats.authority}
-          color="blue"
-        />
-        <StatBar label="球队资金" value={stats.funds} max={null} showBar={false} />
-        <StatBar label="技战术水平" value={stats.tactics} max={10} color="blue" />
+          </div>
+        </div>
+        <div data-onboard-id="stat_tactics">
+          <StatBar label="技战术水平" value={stats.tactics} max={10} color="blue" />
+        </div>
       </div>
       
       <div className="mt-2 flex justify-between items-center gap-2 border-t-2 border-black pt-1">
-        <div className="flex-1 text-center border-2 border-black p-1 bg-gray-50">
+        <div className="flex-1 text-center border-2 border-black p-1 bg-gray-50" data-onboard-id="points_ranking">
             <span className="font-bold text-base">积分: {stats.points} | 排名: 第{estimatedRanking || 1}</span>
         </div>
-        <div className="flex-1 p-1 border-2 border-black bg-gray-50">
+        <div className="flex-1 p-1 border-2 border-black bg-gray-50" data-onboard-id="tabloid_box">
             <div className="flex justify-between items-center mb-0.5">
                 <span className="font-bold text-[11px] uppercase">小报消息</span>
                 <span className="font-bold text-[11px]">{tabloidCount}/3</span>
@@ -259,7 +287,7 @@ const Dashboard = () => {
             </div>
 
             {year >= 2 && (
-              <div className="mt-1">
+              <div className="mt-1" data-onboard-id="stat_injury_risk">
                 <div className="flex justify-between items-center mb-0.5">
                     <span className="font-bold text-[11px] uppercase">伤病风险</span>
                     <span className="font-bold text-[11px]">{stats.injuryRisk || 0}/5</span>

@@ -1,9 +1,9 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { useReducer, useEffect } from 'react';
 import teamsData from '../data/teams.json';
 import eventsData from '../data/events.json';
 import { getLeagueRoster, getUclSeedPool } from '../data/leagues';
 
-const GameContext = createContext();
+import { GameContext } from './GameContextInstance';
 
 const initialState = {
   gameState: 'start', // start, playing, gameover, victory
@@ -24,12 +24,18 @@ const initialState = {
   lastRandomEventId: null,
   specialMechanicState: {
     canteenOpen: true, // Man Utd
+    canteenChangedThisSeason: { open: false, close: false }, // Man Utd
     roofClosed: false, // Real Madrid
-    canteenChangedThisSeason: { open: false, close: false },
     roofChangedThisSeason: { open: false, close: false },
     milanLegendsUsedThisSeason: [],
     bayernDressingRoomRevealed: false,
-    bayernCommitteeRemoved: false
+    bayernCommitteeRemoved: false,
+    kopFreezeTriggered: false,
+    kopFreezeRemainingQuarters: 0,
+    kopFreezeDurationQuarters: 1,
+    youthCalmUsed: false,
+    manCityAutoFlirtUsedTypesThisSeason: [],
+    unionWeaponEventsTriggered: []
   },
   activeBuffs: [], // List of active buff/debuff IDs
   hiddenBuffs: [],
@@ -44,6 +50,9 @@ const initialState = {
   pendingSeasonReset: false,
   gameoverOverrideText: null,
   relegationFinalRanking: null,
+  youthRandomEventSeasonYear: 0,
+  mixerYouthEventSeasonYear: 0,
+  mixerMediaEducateCount: 0,
   tabloidStalkingUnlocked: false,
   coffeeRefUsedThisQuarter: false,
   explodeUsedThisQuarter: false,
@@ -69,8 +78,358 @@ const initialState = {
   uclWonSeasonYear: null,
   season2TutorialShown: false,
   injuryTutorialShown: false,
-  uclTutorialShown: false
+  uclTutorialShown: false,
+  youthTutorialShown: false,
+  youthOnboardingShown: false,
+  youthAcademyUnlocked: false,
+  youthAcademyUnlockPending: false,
+  youthAcademyPlayer: null,
+  youthSquadPlayers: [],
+  youthRefreshUsedThisQuarter: false,
+  youthSeasonFreePointsGrantedYear: 0,
+  leagueChampionYears: [],
+  uclChampionYears: []
 };
+
+function makeYouthId() {
+  return `ya_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(2, 6)}`;
+}
+
+function clampInt(n, min, max) {
+  const v = typeof n === 'number' ? Math.round(n) : 0;
+  return Math.max(min, Math.min(max, v));
+}
+
+const YOUTH_POSITIVE_TRAITS = [
+  { id: 'calm', label: '冷静的' },
+  { id: 'passionate', label: '热情的' },
+  { id: 'stable', label: '稳定的' },
+  { id: 'loyal', label: '忠诚的' },
+  { id: 'multilingual', label: '多语言的' },
+  { id: 'manage_up', label: '向上管理的' }
+];
+
+const YOUTH_NEGATIVE_TRAITS = [
+  { id: 'party_star', label: '派对之星' },
+  { id: 'ambitious', label: '野心家' },
+  { id: 'flirtatious', label: '多情种' },
+  { id: 'mixer', label: '串子' },
+  { id: 'canteen_legend', label: '食堂传奇' },
+  { id: 'mole', label: '内鬼' }
+];
+
+const YOUTH_SPECIAL_TRAITS = [
+  { id: 'eco_guardian', label: '环保卫士' }
+];
+
+function pickRandomTraitId(list, excludeId) {
+  const arr = Array.isArray(list) ? list.filter(Boolean) : [];
+  if (arr.length === 0) return null;
+  const pool = excludeId ? arr.filter(t => t && t.id !== excludeId) : arr;
+  const src = pool.length > 0 ? pool : arr;
+  return src[Math.floor(Math.random() * src.length)]?.id || null;
+}
+
+function rollYouthTraits({ prevPositiveId = null, prevNegativeId = null, prevSpecialId = null } = {}) {
+  const positiveTraitId = pickRandomTraitId(YOUTH_POSITIVE_TRAITS, prevPositiveId);
+
+  const shouldRollSpecial = Math.random() < 0.02;
+  if (shouldRollSpecial) {
+    const specialTraitId = pickRandomTraitId(YOUTH_SPECIAL_TRAITS, prevSpecialId);
+    return {
+      positiveTraitId,
+      negativeTraitId: null,
+      specialTraitId
+    };
+  }
+
+  const negativeTraitId = pickRandomTraitId(YOUTH_NEGATIVE_TRAITS, prevNegativeId);
+  return {
+    positiveTraitId,
+    negativeTraitId,
+    specialTraitId: null
+  };
+}
+
+function getYouthSquadMax(_teamId) {
+  void _teamId;
+  return 1;
+}
+
+function getYouthSquadAddLimit(_teamId, _funds) {
+  void _teamId;
+  void _funds;
+  return 1;
+}
+
+function clampFunds(value, teamId) {
+  const v = typeof value === 'number' ? value : 0;
+  return teamId === 'fc_barcelona' ? v : Math.max(0, v);
+}
+
+function computeYouthTechTacticsDelta(playerTech, teamTactics) {
+  if (playerTech === null || playerTech === undefined) return 0;
+  const tech = clampNumber(playerTech ?? 0, 0, 10);
+  const tactics = clampNumber(teamTactics ?? 0, 0, 10);
+  const diff = tech - tactics;
+  if (diff > 2) return 1;
+  if (diff > 0) return 0.5;
+  if (diff < -2) return -1;
+  if (diff < 0) return -0.5;
+  return 0;
+}
+
+function getBestYouthStarterTech(squadPlayers, ctx) {
+  const arr = Array.isArray(squadPlayers) ? squadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+  let best = null;
+  for (let i = 0; i < arr.length; i += 1) {
+    const p = arr[i];
+    if (!p || p.role !== 'starter') continue;
+    if (
+      !ctx?.ucl &&
+      (p.specialTraitId || '') === 'eco_guardian' &&
+      p.ecoMissingSeasonYear &&
+      p.ecoMissingQuarter &&
+      p.ecoMissingSeasonYear === clampInt(ctx?.year ?? 0, 0, 99) &&
+      p.ecoMissingQuarter === clampInt(ctx?.quarter ?? 0, 0, 3)
+    ) {
+      continue;
+    }
+    const t = clampNumber(p.tech ?? 0, 0, 10);
+    if (best === null || t > best) best = t;
+  }
+  return best;
+}
+
+function generateYouthPlayer({ freePoints = 0, techMin = 5, techMax = 5 } = {}) {
+  const attrs = { unity: 1, authority: 1, diligence: 1 };
+  const keys = ['unity', 'authority', 'diligence'];
+  for (let i = 0; i < 2; i += 1) {
+    const k = keys[Math.floor(Math.random() * keys.length)];
+    attrs[k] = clampInt((attrs[k] ?? 0) + 1, 0, 10);
+  }
+
+  const lo = clampInt(Math.min(techMin, techMax), 0, 10);
+  const hi = clampInt(Math.max(techMin, techMax), 0, 10);
+  const tech = clampNumber(lo + Math.floor(Math.random() * (hi - lo + 1)), 0, 10);
+
+  const traits = rollYouthTraits();
+  return {
+    id: makeYouthId(),
+    name: '',
+    age: 17,
+    unity: clampInt(attrs.unity, 0, 10),
+    authority: clampInt(attrs.authority, 0, 10),
+    diligence: clampInt(attrs.diligence, 0, 10),
+    tech,
+    freePoints: clampInt(freePoints, 0, 9999),
+    starterMatches: 0,
+    benchMatches: 0,
+    role: 'bench',
+    hasArmband: false,
+    positiveTraitId: traits.positiveTraitId,
+    negativeTraitId: traits.negativeTraitId,
+    specialTraitId: traits.specialTraitId,
+    traitRerollUsed: false,
+    moleCaughtCount: 0,
+    ecoMissingSeasonYear: 0,
+    ecoMissingQuarter: 0
+  };
+}
+
+function normalizeYouthPlayer(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    id: typeof raw.id === 'string' && raw.id ? raw.id : makeYouthId(),
+    name: typeof raw.name === 'string' ? raw.name : '',
+    age: clampInt(raw.age ?? 17, 0, 99),
+    unity: clampInt(raw.unity ?? 0, 0, 10),
+    authority: clampInt(raw.authority ?? 0, 0, 10),
+    diligence: clampInt(raw.diligence ?? 0, 0, 10),
+    tech: clampNumber(raw.tech ?? 4, 0, 10),
+    freePoints: clampInt(raw.freePoints ?? 0, 0, 9999),
+    starterMatches: clampInt(raw.starterMatches ?? 0, 0, 999999),
+    benchMatches: clampInt(raw.benchMatches ?? 0, 0, 999999),
+    role: (raw.role === 'starter' || raw.role === 'bench') ? raw.role : 'bench',
+    hasArmband: Boolean(raw.hasArmband),
+    positiveTraitId: (typeof raw.positiveTraitId === 'string' && raw.positiveTraitId) ? raw.positiveTraitId : null,
+    negativeTraitId: (typeof raw.negativeTraitId === 'string' && raw.negativeTraitId) ? raw.negativeTraitId : null,
+    specialTraitId: (typeof raw.specialTraitId === 'string' && raw.specialTraitId) ? raw.specialTraitId : null,
+    traitRerollUsed: Boolean(raw.traitRerollUsed),
+    moleCaughtCount: clampInt(raw.moleCaughtCount ?? 0, 0, 999999),
+    ecoMissingSeasonYear: clampInt(raw.ecoMissingSeasonYear ?? 0, 0, 99),
+    ecoMissingQuarter: clampInt(raw.ecoMissingQuarter ?? 0, 0, 3)
+  };
+}
+
+function getYouthTraitMult(player) {
+  return player && player.hasArmband ? 2 : 1;
+}
+
+function getYouthTraitMonthlyBonuses(squadPlayers) {
+  const arr = Array.isArray(squadPlayers) ? squadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+  let funds = 0;
+  let mediaSupport = 0;
+  let boardSupport = 0;
+  arr.forEach(p => {
+    const mult = getYouthTraitMult(p);
+    if ((p.positiveTraitId || '') === 'passionate') funds = Math.max(funds, 2 * mult);
+    if ((p.positiveTraitId || '') === 'multilingual') mediaSupport = Math.max(mediaSupport, 2 * mult);
+    if ((p.positiveTraitId || '') === 'manage_up') boardSupport = Math.max(boardSupport, 2 * mult);
+  });
+  return { funds, mediaSupport, boardSupport };
+}
+
+function getYouthTraitQuarterlyModifiers(squadPlayers) {
+  const arr = Array.isArray(squadPlayers) ? squadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+  let injuryRisk = 0;
+  let funds = 0;
+  arr.forEach(p => {
+    const mult = getYouthTraitMult(p);
+    if ((p.negativeTraitId || '') === 'party_star') injuryRisk = Math.max(injuryRisk, 1 * mult);
+    if ((p.negativeTraitId || '') === 'canteen_legend') funds = Math.min(funds, -5 * mult);
+  });
+  return { injuryRisk, funds };
+}
+
+function getYouthFlirtExtraTabloid(squadPlayers) {
+  const arr = Array.isArray(squadPlayers) ? squadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+  let extra = 0;
+  arr.forEach(p => {
+    const mult = getYouthTraitMult(p);
+    if ((p.negativeTraitId || '') === 'flirtatious') extra = Math.max(extra, 1 * mult);
+  });
+  return extra;
+}
+
+function hasYouthPositiveTrait(squadPlayers, id) {
+  const arr = Array.isArray(squadPlayers) ? squadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+  return arr.some(p => (p.positiveTraitId || '') === id);
+}
+
+function hasYouthNegativeTrait(squadPlayers, id) {
+  const arr = Array.isArray(squadPlayers) ? squadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+  return arr.some(p => (p.negativeTraitId || '') === id);
+}
+
+function isRandomEventId(id, teamId) {
+  if (!id) return false;
+  const g = (eventsData && eventsData.randomEvents && Array.isArray(eventsData.randomEvents.global)) ? eventsData.randomEvents.global : [];
+  const t = (eventsData && eventsData.randomEvents && eventsData.randomEvents.teamSpecific && Array.isArray(eventsData.randomEvents.teamSpecific[teamId]))
+    ? eventsData.randomEvents.teamSpecific[teamId]
+    : [];
+  return g.some(e => e && e.id === id) || t.some(e => e && e.id === id);
+}
+
+function tryApplyYouthCalmProtection({ stats, specialMechanicState, youthSquadPlayers, teamId }) {
+  const used = Boolean(specialMechanicState?.youthCalmUsed);
+  if (used) return { applied: false, stats, specialMechanicState };
+  const hasCalm = hasYouthPositiveTrait(youthSquadPlayers, 'calm');
+  if (!hasCalm) return { applied: false, stats, specialMechanicState };
+
+  const nextStats = { ...(stats || {}) };
+  nextStats.boardSupport = Math.max(0, Math.min(100, (nextStats.boardSupport ?? 0) + 20));
+  nextStats.dressingRoom = Math.max(0, Math.min(100, (nextStats.dressingRoom ?? 0) + 20));
+  const nextSpecial = { ...(specialMechanicState || {}), youthCalmUsed: true };
+  nextStats.funds = clampFunds(nextStats.funds ?? 0, teamId);
+  return { applied: true, stats: nextStats, specialMechanicState: nextSpecial };
+}
+
+function getYouthSquadProfile(squadPlayers) {
+  const arr = Array.isArray(squadPlayers) ? squadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+  const profile = {
+    bestUnity: 0,
+    bestAuthority: 0,
+    bestDiligence: 0,
+    monthlyDressingRoomBonus: 0,
+    monthlyAuthorityBonus: 0,
+    quarterlyTacticsBonus: 0,
+    seasonTacticsDrop: 2,
+    hasArmbandUnity10: false,
+    hasArmbandAuthority10: false,
+    hasArmbandDiligence10: false
+  };
+
+  let maxSeasonDropReduction = 0;
+
+  arr.forEach(p => {
+    if (!p) return;
+
+    const unity = clampInt(p.unity ?? 0, 0, 10);
+    const authority = clampInt(p.authority ?? 0, 0, 10);
+    const diligence = clampInt(p.diligence ?? 0, 0, 10);
+    const mult = p.hasArmband ? 2 : 1;
+
+    profile.bestUnity = Math.max(profile.bestUnity, unity);
+    profile.bestAuthority = Math.max(profile.bestAuthority, authority);
+    profile.bestDiligence = Math.max(profile.bestDiligence, diligence);
+
+    const dressingRoomBase = unity >= 7 ? 3 : (unity >= 5 ? 2 : 0);
+    profile.monthlyDressingRoomBonus = Math.max(profile.monthlyDressingRoomBonus, dressingRoomBase * mult);
+
+    const authorityBase = authority >= 7 ? 2 : 0;
+    profile.monthlyAuthorityBonus = Math.max(profile.monthlyAuthorityBonus, authorityBase * mult);
+
+    const quarterlyTacticsBase = diligence >= 7 ? 0.5 : 0;
+    profile.quarterlyTacticsBonus = Math.max(profile.quarterlyTacticsBonus, quarterlyTacticsBase * mult);
+
+    const seasonDropReductionBase = diligence >= 5 ? 1 : 0;
+    maxSeasonDropReduction = Math.max(maxSeasonDropReduction, seasonDropReductionBase * mult);
+
+    if (p.hasArmband && unity === 10) profile.hasArmbandUnity10 = true;
+    if (p.hasArmband && authority === 10) profile.hasArmbandAuthority10 = true;
+    if (p.hasArmband && diligence === 10) profile.hasArmbandDiligence10 = true;
+  });
+
+  profile.seasonTacticsDrop = clampInt(2 - maxSeasonDropReduction, 0, 2);
+
+  return profile;
+}
+
+function applyYouthMatchesToSquad(squadPlayers, matchesPlayed, opts) {
+  const arr = Array.isArray(squadPlayers) ? squadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+  const matches = clampInt(matchesPlayed ?? 0, 0, 999);
+  if (matches <= 0 || arr.length === 0) return arr;
+
+  return arr.map(p => {
+    const isEcoMissing = Boolean(
+      !opts?.ucl &&
+      (p.specialTraitId || '') === 'eco_guardian' &&
+      p.ecoMissingSeasonYear &&
+      p.ecoMissingQuarter &&
+      p.ecoMissingSeasonYear === clampInt(opts?.year ?? 0, 0, 99) &&
+      p.ecoMissingQuarter === clampInt(opts?.quarter ?? 0, 0, 3)
+    );
+    if (isEcoMissing) return p;
+
+    const prevStarter = clampInt(p.starterMatches ?? 0, 0, 999999);
+    const prevBench = clampInt(p.benchMatches ?? 0, 0, 999999);
+
+    let nextStarter = prevStarter;
+    let nextBench = prevBench;
+    if (p.role === 'starter') nextStarter += matches;
+    else nextBench += matches;
+
+    const prevStarterSteps = Math.floor(prevStarter / 10);
+    const nextStarterSteps = Math.floor(nextStarter / 10);
+    const starterGain = Math.max(0, nextStarterSteps - prevStarterSteps) * 0.5;
+
+    const prevBenchSteps = Math.floor(prevBench / 30);
+    const nextBenchSteps = Math.floor(nextBench / 30);
+    const benchGain = ((p.negativeTraitId || '') === 'ambitious' && p.role !== 'starter')
+      ? 0
+      : (Math.max(0, nextBenchSteps - prevBenchSteps) * 0.5);
+
+    const gain = starterGain + benchGain;
+
+    return {
+      ...p,
+      starterMatches: nextStarter,
+      benchMatches: nextBench,
+      tech: clampNumber((p.tech ?? 0) + gain, 0, 10)
+    };
+  });
+}
 
 function buildUclIntroEvent() {
   return {
@@ -151,7 +510,7 @@ function buildUclChampionEvent() {
   };
 }
 
-function buildInjuryRiskTutorialEvent() {
+function _buildInjuryRiskTutorialEvent() {
   return {
     id: 'tutorial_injury_risk',
     title: '新机制：伤病风险',
@@ -160,7 +519,7 @@ function buildInjuryRiskTutorialEvent() {
   };
 }
 
-function buildSeason2StarterTutorialEvent() {
+function _buildSeason2StarterTutorialEvent() {
   return {
     id: 'tutorial_season2_starter',
     title: '新赛季提示',
@@ -169,12 +528,23 @@ function buildSeason2StarterTutorialEvent() {
   };
 }
 
-function buildUclTutorialEvent() {
+function _buildUclTutorialEvent() {
   return {
     id: 'tutorial_ucl',
     title: '新机制：欧冠淘汰赛',
     description: '你已获得欧冠席位。每个赛季的第二季度结算后将进入欧冠十六强：先抽签决定对手（十六强有同联赛回避），随后第三季度将由欧冠淘汰赛赛程替代随机事件。祝你好运。',
     options: [{ text: '我知道了', effects: {} }]
+  };
+}
+
+function _buildYouthAcademyTutorialEvent(nextEvent) {
+  const option = { text: '我知道了', effects: {} };
+  if (nextEvent) option.nextEvent = nextEvent;
+  return {
+    id: 'tutorial_youth_academy',
+    title: '新机制：青训系统',
+    description: '青训系统已解锁。\n\n1）你可以从【青训】入口查看青训营与已加入一线队的青训球员。\n2）青训营每次只会出现1名候选人；你可以选择【并入队】、【出售】或花费资金【刷新】候选人（每个季度只能刷新一次）。\n3）青训球员加入一线队后可设置为首发/替补，比赛与时间会推动他们成长；每支球队最多只能有1名青训入队。',
+    options: [option]
   };
 }
 
@@ -250,6 +620,7 @@ function buildUclTeams16(state) {
 const SAVE_VERSION = 1;
 const AUTO_SAVE_KEY = 'gsm_save_auto_latest';
 const MANUAL_SAVE_KEY_PREFIX = 'gsm_save_manual_';
+const MANUAL_SLOTS_KEY = 'gsm_save_manual_slots_v2';
 const GLOBAL_ACHIEVEMENTS_KEY = 'gsm_achievements_global_v1';
 
 function buildSavePayload(state, type, slot) {
@@ -284,7 +655,7 @@ function buildSavePayload(state, type, slot) {
   };
 }
 
-function buildChoiceOutcomeEvent({ baseEvent, option, effectsPreview, nextEvent }) {
+function _buildChoiceOutcomeEvent({ baseEvent, option, effectsPreview, nextEvent }) {
   return {
     id: `outcome_${baseEvent?.id || 'event'}_${option?.id || 'choice'}`,
     title: baseEvent?.title || '后果',
@@ -326,8 +697,71 @@ function hydrateLoadedState(raw) {
 
   if (!Array.isArray(next.hiddenBuffs)) next.hiddenBuffs = [];
 
+  if (!Array.isArray(next.activeBuffs)) next.activeBuffs = [];
+  if (next.activeBuffs.includes('kop_call')) {
+    next.activeBuffs = next.activeBuffs
+      .map(id => (id === 'kop_call' ? 'kop_freeze_season' : id))
+      .filter((id, idx, arr) => arr.indexOf(id) === idx);
+  }
+
   if (!next.specialMechanicState || typeof next.specialMechanicState !== 'object') {
     next.specialMechanicState = { ...initialState.specialMechanicState };
+  }
+  if (!Array.isArray(next.specialMechanicState.manCityAutoFlirtUsedTypesThisSeason)) {
+    next.specialMechanicState.manCityAutoFlirtUsedTypesThisSeason = [];
+  }
+
+  if (!Array.isArray(next.specialMechanicState.unionWeaponEventsTriggered)) {
+    next.specialMechanicState.unionWeaponEventsTriggered = [];
+  }
+
+  if (next.specialMechanicState.unionWeaponEventsTriggered.length === 0 && Array.isArray(next.activeBuffs)) {
+    const inferred = [];
+    if (next.activeBuffs.includes('union_stun_gun')) inferred.push('union_weapon_1');
+    if (next.activeBuffs.includes('union_stun_iron')) inferred.push('union_weapon_1', 'union_weapon_2');
+    if (next.activeBuffs.includes('union_wood_iron_stun')) inferred.push('union_weapon_1', 'union_weapon_2', 'union_weapon_3', 'union_weapon_4');
+    if (inferred.length > 0) {
+      next.specialMechanicState.unionWeaponEventsTriggered = Array.from(new Set(inferred));
+    }
+  }
+
+  if (next.specialMechanicState.youthCalmUsed === undefined) next.specialMechanicState.youthCalmUsed = false;
+
+  // Migrate Mourinho legacy issues debuff split (older saves may have only legacy_issues)
+  if (next.currentTeam?.id === 'man_city') {
+    if (next.activeBuffs.includes('legacy_issues') && !next.activeBuffs.includes('legacy_issues_mop')) {
+      next.activeBuffs = next.activeBuffs.map(id => (id === 'legacy_issues' ? 'legacy_issues_mop' : id));
+    }
+  }
+  if (next.currentTeam?.id === 'arsenal') {
+    if (next.activeBuffs.includes('legacy_issues_mop') && !next.activeBuffs.includes('legacy_issues')) {
+      next.activeBuffs = next.activeBuffs.map(id => (id === 'legacy_issues_mop' ? 'legacy_issues' : id));
+    }
+  }
+  next.activeBuffs = next.activeBuffs.filter((id, idx, arr) => arr.indexOf(id) === idx);
+
+  if (next.youthRandomEventSeasonYear === undefined) next.youthRandomEventSeasonYear = 0;
+  if (next.mixerYouthEventSeasonYear === undefined) next.mixerYouthEventSeasonYear = 0;
+  if (next.mixerMediaEducateCount === undefined) next.mixerMediaEducateCount = 0;
+
+  if (next.currentTeam?.id === 'liverpool') {
+    const name = next.playerName;
+    const hasKop = next.activeBuffs.includes('kop_freeze_quarter') || next.activeBuffs.includes('kop_freeze_season');
+    if (!hasKop) {
+      if (isKloppName(name)) {
+        next.activeBuffs.push('kop_freeze_season');
+        next.specialMechanicState = { ...next.specialMechanicState, kopFreezeDurationQuarters: 4 };
+      } else {
+        next.activeBuffs.push('kop_freeze_quarter');
+        next.specialMechanicState = { ...next.specialMechanicState, kopFreezeDurationQuarters: 1 };
+      }
+    }
+
+    if (isAlonsoName(name) && !next.activeBuffs.includes('istanbul_kiss')) {
+      next.activeBuffs.push('istanbul_kiss');
+    }
+
+    next.activeBuffs = next.activeBuffs.filter((id, idx, arr) => arr.indexOf(id) === idx);
   }
   if (next.specialMechanicState.bayernDressingRoomRevealed === undefined) next.specialMechanicState.bayernDressingRoomRevealed = false;
   if (next.specialMechanicState.bayernCommitteeRemoved === undefined) next.specialMechanicState.bayernCommitteeRemoved = false;
@@ -374,6 +808,81 @@ function hydrateLoadedState(raw) {
   if (next.season2TutorialShown === undefined) next.season2TutorialShown = false;
   if (next.injuryTutorialShown === undefined) next.injuryTutorialShown = false;
   if (next.uclTutorialShown === undefined) next.uclTutorialShown = false;
+  if (next.youthTutorialShown === undefined) next.youthTutorialShown = false;
+  if (next.youthOnboardingShown === undefined) next.youthOnboardingShown = false;
+
+  if (!Array.isArray(next.leagueChampionYears)) next.leagueChampionYears = [];
+  if (!Array.isArray(next.uclChampionYears)) next.uclChampionYears = [];
+
+  if (next.youthAcademyUnlocked === undefined) next.youthAcademyUnlocked = false;
+  if (next.youthAcademyUnlockPending === undefined) next.youthAcademyUnlockPending = Boolean((next.year ?? 1) >= 3);
+  if (next.youthAcademyPlayer === undefined) next.youthAcademyPlayer = null;
+  if (!Array.isArray(next.youthSquadPlayers)) next.youthSquadPlayers = [];
+  if (next.youthRefreshUsedThisQuarter === undefined) next.youthRefreshUsedThisQuarter = false;
+  if (next.youthSeasonFreePointsGrantedYear === undefined) next.youthSeasonFreePointsGrantedYear = 0;
+
+  {
+    const leagueYears = new Set((Array.isArray(next.leagueChampionYears) ? next.leagueChampionYears : []).filter(v => typeof v === 'number'));
+    const uclYears = new Set((Array.isArray(next.uclChampionYears) ? next.uclChampionYears : []).filter(v => typeof v === 'number'));
+
+    if (typeof next.uclWonSeasonYear === 'number') {
+      uclYears.add(next.uclWonSeasonYear);
+    }
+
+    if (
+      next.currentEvent?.id === 'season_settlement' &&
+      next.currentEvent?.champion &&
+      typeof next.currentEvent?.seasonYear === 'number'
+    ) {
+      leagueYears.add(next.currentEvent.seasonYear);
+    }
+
+    if (next.gameState === 'double_crown') {
+      const inferredSeasonYear = (typeof next.uclWonSeasonYear === 'number')
+        ? next.uclWonSeasonYear
+        : ((typeof next.year === 'number') ? (next.year - 1) : null);
+      if (typeof inferredSeasonYear === 'number') {
+        leagueYears.add(inferredSeasonYear);
+        uclYears.add(inferredSeasonYear);
+      } else {
+        leagueYears.add(-1);
+        uclYears.add(-1);
+      }
+    }
+
+    if (next.achievementsUnlocked && next.achievementsUnlocked['double_crown']) {
+      if (leagueYears.size === 0) leagueYears.add(-1);
+      if (uclYears.size === 0) uclYears.add(-1);
+    }
+
+    if (next.achievementsUnlocked && next.achievementsUnlocked['ucl_champion']) {
+      if (uclYears.size === 0) uclYears.add(-1);
+    }
+
+    if (next.achievementsUnlocked && next.achievementsUnlocked['manutd_year1_champion']) {
+      leagueYears.add(1);
+    }
+
+    next.leagueChampionYears = Array.from(leagueYears);
+    next.uclChampionYears = Array.from(uclYears);
+  }
+
+  if (next.currentTeam?.id === 'fc_barcelona') {
+    next.youthAcademyUnlocked = true;
+    next.youthAcademyUnlockPending = false;
+  }
+
+  next.youthAcademyPlayer = normalizeYouthPlayer(next.youthAcademyPlayer);
+  next.youthSquadPlayers = next.youthSquadPlayers
+    .map(p => {
+      if (!p || typeof p !== 'object') return p;
+      // Back-compat: older saves may not have freePoints for squad youth.
+      if (p.freePoints === undefined) return { ...p, freePoints: 1 };
+      return p;
+    })
+    .map(normalizeYouthPlayer)
+    .filter(Boolean)
+    .slice(0, getYouthSquadMax(next.currentTeam?.id));
 
   if (next.easterEggTriggered === undefined) next.easterEggTriggered = false;
 
@@ -674,6 +1183,41 @@ function enforceEmmaCamera(stats, activeBuffs) {
   stats.mediaSupport = Math.max(40, stats.mediaSupport);
 }
 
+function enforceYouthUnity10Floor(stats, youthSquadPlayers) {
+  if (!stats || stats.dressingRoom === undefined) return;
+  const youthProfile = getYouthSquadProfile(youthSquadPlayers);
+  if (!youthProfile.hasArmbandUnity10) return;
+  stats.dressingRoom = Math.max(40, clampNumber(stats.dressingRoom, 0, 100));
+}
+
+function applyKopFreeze({ stats, activeBuffs, specialMechanicState }) {
+  if (!stats) return { stats, specialMechanicState };
+  const buffs = Array.isArray(activeBuffs) ? activeBuffs : [];
+  const hasKopQuarter = buffs.includes('kop_freeze_quarter');
+  const hasKopSeason = buffs.includes('kop_freeze_season');
+  if (!hasKopQuarter && !hasKopSeason) return { stats, specialMechanicState };
+
+  const nextSpecial = { ...(specialMechanicState || {}) };
+  if (typeof nextSpecial.kopFreezeTriggered !== 'boolean') nextSpecial.kopFreezeTriggered = false;
+  if (typeof nextSpecial.kopFreezeRemainingQuarters !== 'number') nextSpecial.kopFreezeRemainingQuarters = 0;
+
+  const duration = hasKopSeason ? 4 : 1;
+  nextSpecial.kopFreezeDurationQuarters = duration;
+
+  const boardSupport = typeof stats.boardSupport === 'number' ? stats.boardSupport : 0;
+  if (!nextSpecial.kopFreezeTriggered && boardSupport < 20) {
+    nextSpecial.kopFreezeTriggered = true;
+    nextSpecial.kopFreezeRemainingQuarters = duration;
+  }
+
+  if ((nextSpecial.kopFreezeRemainingQuarters || 0) > 0) {
+    const nextStats = { ...stats, boardSupport: Math.max(20, boardSupport) };
+    return { stats: nextStats, specialMechanicState: nextSpecial };
+  }
+
+  return { stats, specialMechanicState: nextSpecial };
+}
+
 function syncDerivedBuffs({ activeBuffs, stats, teamId, specialMechanicState }) {
   const dynamicBuffs = ['media_darling', 'media_hostile', 'turmoil', 'closed_canteen'];
   const next = new Set((activeBuffs || []).filter(b => !dynamicBuffs.includes(b)));
@@ -697,7 +1241,7 @@ function syncDerivedBuffs({ activeBuffs, stats, teamId, specialMechanicState }) 
   return Array.from(next);
 }
 
-function buildTabloidBreakingEvent() {
+function buildTabloidBreakingEvent(nextEvent = null) {
   return {
     id: 'tabloid_breaking',
     title: 'Breaking！！',
@@ -710,7 +1254,8 @@ function buildTabloidBreakingEvent() {
           id: 'tabloid_headline',
           title: '头条新闻',
           description: '你的丑闻被曝光，引来轩然大波。管理层对你很不满意，你在新闻报道中的口碑也下降了。',
-          effects: { mediaSupport: -15, boardSupport: -10 }
+          effects: { mediaSupport: -15, boardSupport: -10 },
+          nextEvent
         }
       }
     ]
@@ -726,10 +1271,25 @@ function buildMusialaBayernEasterEggEvent() {
   };
 }
 
-function isArtetaName(name) {
-  const n = (name || '').trim().toLowerCase();
-  return n === '阿尔特塔' || n === '米克尔阿尔特塔' || n === 'arteta' || n === 'mikel arteta';
-}
+ function isXaviName(name) {
+   const n = (name || '').trim().toLowerCase();
+   return n === '哈维' || n === 'xavi' || n === 'xavier';
+ }
+
+ function isGuardiolaName(name) {
+   const n = (name || '').trim().toLowerCase();
+   return n === '瓜迪奥拉' || n === 'guardiola' || n === 'pep guardiola';
+ }
+
+ function isCruyffName(name) {
+   const n = (name || '').trim().toLowerCase();
+   return n === '克鲁伊夫' || n === 'cruyff' || n === 'johan cruyff';
+ }
+
+ function isAncelottiName(name) {
+   const n = (name || '').trim().toLowerCase();
+   return n === '安切洛蒂' || n === 'ancelotti' || n === 'carlo ancelotti';
+ }
 
 function isMourinhoName(name) {
   const n = (name || '').trim().toLowerCase();
@@ -744,6 +1304,11 @@ function isGerrardName(name) {
 function isAlonsoName(name) {
   const n = (name || '').trim().toLowerCase();
   return n === '阿隆索' || n === '哈维阿隆索' || n === 'xabi alonso' || n === 'alonso';
+}
+
+function isArtetaName(name) {
+  const n = (name || '').trim().toLowerCase();
+  return n === '阿尔特塔' || n === '米克尔阿尔特塔' || n === 'arteta' || n === 'mikel arteta';
 }
 
 function isMaldiniName(name) {
@@ -778,7 +1343,7 @@ function isMusialaName(name) {
 
 function isInzaghiName(name) {
   const n = (name || '').trim().toLowerCase();
-  return n === '因扎吉' || n === 'inzaghi' || n === 'filippo inzaghi' || n === 'simone inzaghi' || n === '菲利波因扎吉' || n === '西蒙尼因扎吉';
+  return n === '因扎吉' || n === 'inzaghi' || n === 'filippo inzaghi' || n === 'simone inzaghi' || n === '皮波因扎吉' || n === '西蒙尼因扎吉';
 }
 
 function isPiqueName(name) {
@@ -790,6 +1355,107 @@ function isKakaName(name) {
   const n = (name || '').trim().toLowerCase();
   return n === '卡卡' || n === 'kaka' || n === 'kaká';
 }
+
+ function applyYouthPromotionAchievements(state, promotedPlayer) {
+  const p = normalizeYouthPlayer(promotedPlayer);
+  if (!p) return state;
+
+  const teamId = state.currentTeam?.id;
+  const n = (p.name || '').trim().toLowerCase();
+  let next = state;
+
+  if (teamId === 'real_madrid') {
+    if (n === '劳尔' || n === 'raul') {
+      next = unlockAchievementInState(next, 'youth_raul_madridista');
+    }
+  }
+
+  {
+    const coachNameNorm = (state.playerName || '').trim().toLowerCase();
+    if (coachNameNorm && n && coachNameNorm === n) {
+      next = unlockAchievementInState(next, 'youth_inheritance');
+    }
+  }
+
+  if (teamId === 'fc_barcelona') {
+    if (n === '伊涅斯塔' || n === '小白' || n === 'iniesta' || n === 'andres iniesta' || n === 'andrés iniesta') {
+      next = unlockAchievementInState(next, 'youth_iniesta_croquette');
+    }
+  }
+
+  if (teamId === 'bayern_munich') {
+    if (n === '穆勒' || n === 'muller' || n === 'müller' || n === 'thomas muller' || n === 'thomas müller') {
+      next = unlockAchievementInState(next, 'youth_muller_bayern');
+    }
+  }
+  if (teamId === 'liverpool') {
+    if (n === '杰拉德' || n === 'gerrard' || n === 'steven gerrard') {
+      next = unlockAchievementInState(next, 'youth_gerrard_liverpool');
+    }
+    if (n === '若塔' || n === 'jota' || n === 'diogo jota') {
+      next = unlockAchievementInState(next, 'youth_jota_liverpool');
+    }
+  }
+  if (teamId === 'ac_milan') {
+    if (n === '马尔蒂尼' || n === 'maldini' || n === 'paolo maldini') {
+      next = unlockAchievementInState(next, 'youth_maldini_milan');
+    }
+  }
+  if (teamId === 'man_utd') {
+    if (n === '弗格森' || n === 'ferguson' || n === 'sir alex ferguson') {
+      next = unlockAchievementInState(next, 'youth_ferguson_manutd');
+    }
+    if (n === '贝克汉姆' || n === 'beckham' || n === 'david beckham') {
+      next = unlockAchievementInState(next, 'youth_beckham_manutd');
+    }
+  }
+  if (teamId === 'chelsea') {
+    if (n === '特里' || n === 'terry' || n === 'john terry') {
+      next = unlockAchievementInState(next, 'youth_terry_chelsea');
+    }
+  }
+  if (teamId === 'dortmund') {
+    if (n === '罗伊斯' || n === 'reus' || n === 'marco reus') {
+      next = unlockAchievementInState(next, 'youth_reus_dortmund');
+    }
+  }
+  if (teamId === 'arsenal') {
+    if (n === '威尔希尔' || n === 'wilshere' || n === 'jack wilshere') {
+      next = unlockAchievementInState(next, 'youth_wilshere_arsenal');
+    }
+  }
+
+  if ((p.negativeTraitId || '') === 'mixer') {
+    const mixerNameSet = new Set([
+      '菲戈',
+      '欧文',
+      '多纳鲁马',
+      '卡尔',
+      '阿诺德',
+      '莫拉塔',
+      '格策',
+      'figo',
+      'owen',
+      'donnarumma',
+      'karl',
+      'arnold',
+      'morata',
+      'gotze',
+      'götze'
+    ]);
+    if (mixerNameSet.has((p.name || '').trim()) || mixerNameSet.has(n)) {
+      next = unlockAchievementInState(next, 'youth_mixer_deserved');
+    }
+  }
+
+  const tactics = clampNumber(state.stats?.tactics ?? 0, 0, 10);
+  const tech = clampNumber(p.tech ?? 0, 0, 10);
+  if (tech < tactics) {
+    next = unlockAchievementInState(next, 'youth_shortcoming');
+  }
+
+  return next;
+ }
 
 function unlockAchievementInState(state, id) {
   if (!id) return state;
@@ -808,13 +1474,6 @@ function unlockAchievementInState(state, id) {
     achievementsUnlocked: nextUnlocked,
     achievementToastQueue: nextQueue
   };
-}
-
-function shouldTriggerArtetaEasterEgg(state) {
-  if (!state || state.artetaEasterEggTriggered) return false;
-  if (!state.currentTeam || !state.playerName) return false;
-  if (state.currentTeam.id !== 'arsenal') return false;
-  return isArtetaName(state.playerName);
 }
 
 function buildArtetaExHusbandEvent({ firedBy }) {
@@ -884,28 +1543,19 @@ function buildSeasonSettlementEvent({ seasonYear, ranking, points, champion, ucl
   };
 }
 
-function shouldTriggerAlonsoEasterEgg(state, statsAfter) {
-  if (!state || state.easterEggTriggered) return false;
-  if (!state.currentTeam || !state.playerName) return false;
-  if (!isAlonsoName(state.playerName)) return false;
-  const teamName = state.currentTeam.name;
-  if (teamName === '曼联' || teamName === '利物浦') return false;
-  return (statsAfter.boardSupport <= 0 || statsAfter.dressingRoom <= 0);
-}
-
 function buildGerrardLetterEvent() {
   return {
     id: 'gerrard_letter',
     title: '杰拉德的来信',
     description: '亲爱的Xabi，\n我很抱歉听到你离开[俱乐部]的消息。虽然现在才给你发消息可能有些晚，但我想问……你愿意来利物浦执教吗？你知道的，这里的所有人都希望你来（包括我）。如果你愿意，我一定会说服他们立刻给你offer的！',
     options: [
-      { text: 'You’ll never walk alone', effects: {}, switchTeamId: 'liverpool', grantBuff: 'istanbul_kiss' },
-      { text: '礼貌拒绝（重新开始）', effects: {}, setPendingGameState: 'gameover' }
+      { text: 'You’ll never walk alone（前往利物浦执教）', effects: {}, switchTeamId: 'liverpool', grantBuff: 'istanbul_kiss' },
+      { text: '礼貌拒绝（正式下课，重新开始新游戏）', effects: {}, setPendingGameState: 'gameover' }
     ]
   };
 }
 
-function buildTabloidStalkingIntroEvent() {
+function _buildTabloidStalkingIntroEvent() {
   return {
     id: 'tabloid_stalking_intro',
     title: '月亮报的盯梢',
@@ -918,13 +1568,33 @@ function cloneAndReplaceEventText(event, state) {
   if (!event) return null;
   const cloned = { ...event };
 
+  const leagueId = state?.currentTeam?.leagueId;
+  const leagueName = leagueId === 'epl'
+    ? '英超'
+    : (leagueId === 'laliga'
+      ? '西甲'
+      : (leagueId === 'serie_a'
+        ? '意甲'
+        : (leagueId === 'bundesliga' ? '德甲' : '联赛')));
+
+  const youthArr = Array.isArray(state?.youthSquadPlayers) ? state.youthSquadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+  const primaryYouth = youthArr.length > 0 ? youthArr[0] : null;
+  const youthName = String(primaryYouth?.name || '').trim() || '未命名';
+
+  if (primaryYouth?.id) {
+    cloned.youthTargetId = primaryYouth.id;
+    cloned.youthTargetName = youthName;
+  }
+
   if (cloned.description) {
     cloned.description = cloned.description
       .replace(/\[名字\]/g, state.playerName)
+      .replace(/\[青训名字\]/g, youthName)
       .replace(/\[俱乐部\]/g, state.currentTeam.name)
       .replace(/\[执教理念\]/g, state.coachingPhilosophy)
       .replace(/\[教练名字\]/g, state.playerName)
-      .replace(/\[俱乐部名字\]/g, state.currentTeam.name);
+      .replace(/\[俱乐部名字\]/g, state.currentTeam.name)
+      .replace(/\[联赛名\]/g, leagueName);
   }
 
   if (cloned.options) {
@@ -932,14 +1602,71 @@ function cloneAndReplaceEventText(event, state) {
       ...opt,
       text: opt.text
         .replace(/\[名字\]/g, state.playerName)
+        .replace(/\[青训名字\]/g, youthName)
         .replace(/\[俱乐部\]/g, state.currentTeam.name)
         .replace(/\[执教理念\]/g, state.coachingPhilosophy)
         .replace(/\[教练名字\]/g, state.playerName)
         .replace(/\[俱乐部名字\]/g, state.currentTeam.name)
+        .replace(/\[联赛名\]/g, leagueName),
+      outcomeText: opt.outcomeText
+        ? String(opt.outcomeText)
+          .replace(/\[名字\]/g, state.playerName)
+          .replace(/\[青训名字\]/g, youthName)
+          .replace(/\[俱乐部\]/g, state.currentTeam.name)
+          .replace(/\[执教理念\]/g, state.coachingPhilosophy)
+          .replace(/\[教练名字\]/g, state.playerName)
+          .replace(/\[俱乐部名字\]/g, state.currentTeam.name)
+          .replace(/\[联赛名\]/g, leagueName)
+        : opt.outcomeText,
+      confirmText: opt.confirmText
+        ? String(opt.confirmText)
+          .replace(/\[名字\]/g, state.playerName)
+          .replace(/\[青训名字\]/g, youthName)
+          .replace(/\[俱乐部\]/g, state.currentTeam.name)
+          .replace(/\[执教理念\]/g, state.coachingPhilosophy)
+          .replace(/\[教练名字\]/g, state.playerName)
+          .replace(/\[俱乐部名字\]/g, state.currentTeam.name)
+          .replace(/\[联赛名\]/g, leagueName)
+        : opt.confirmText
     }));
   }
 
   return cloned;
+}
+
+function appendEventToTail(baseEvent, tailEvent) {
+  if (!baseEvent) return tailEvent || null;
+  if (!tailEvent) return baseEvent;
+
+  const seen = new Set();
+
+  const visit = (ev) => {
+    if (!ev) return tailEvent;
+    const id = typeof ev.id === 'string' ? ev.id : null;
+    if (id && seen.has(id)) return ev;
+    if (id) seen.add(id);
+
+    if (Array.isArray(ev.options) && ev.options.length > 0) {
+      return {
+        ...ev,
+        options: ev.options.map(opt => {
+          if (!opt) return opt;
+          if (opt.nextEvent) {
+            return { ...opt, nextEvent: visit(opt.nextEvent) };
+          }
+          return { ...opt, nextEvent: tailEvent };
+        })
+      };
+    }
+
+    if (ev.nextEvent) {
+      return { ...ev, nextEvent: visit(ev.nextEvent) };
+    }
+
+    return { ...ev, nextEvent: tailEvent };
+  };
+
+  return visit(baseEvent);
 }
 
 function gameReducer(state, action) {
@@ -949,6 +1676,22 @@ function gameReducer(state, action) {
         ...state,
         gameState: action.payload?.gameState || 'playing'
       };
+
+    case 'MARK_SEASON2_TUTORIAL_SHOWN': {
+      if (state.season2TutorialShown) return state;
+      return {
+        ...state,
+        season2TutorialShown: true
+      };
+    }
+
+    case 'MARK_YOUTH_ONBOARDING_SHOWN': {
+      if (state.youthOnboardingShown) return state;
+      return {
+        ...state,
+        youthOnboardingShown: true
+      };
+    }
 
     case 'DEQUEUE_ACHIEVEMENT_TOAST': {
       if (!state.achievementToastQueue || state.achievementToastQueue.length === 0) return state;
@@ -981,7 +1724,7 @@ function gameReducer(state, action) {
       };
     }
 
-    case 'START_GAME':
+    case 'START_GAME': {
       const team = teamsData.find(t => t.id === action.payload.teamId);
 
       // Easter egg: Gerrard coaching Man Utd -> instant gameover
@@ -1001,10 +1744,16 @@ function gameReducer(state, action) {
       const baseBuffs = [];
       let nextStartSpecialState = { ...initialState.specialMechanicState };
 
-      // Easter egg: Mourinho coaching Arsenal (with confirmation) -> debuff + lower board support
-      if (team && team.id === 'arsenal' && isMourinhoName(action.payload.playerName) && action.payload.confirmMourinho === true) {
-        baseStats.boardSupport = 50;
-        baseBuffs.push('legacy_issues');
+      // Easter egg: Mourinho coaching Arsenal / Man City (with confirmation) -> debuff + lower stats
+      if (team && isMourinhoName(action.payload.playerName) && action.payload.confirmMourinho === true) {
+        if (team.id === 'arsenal') {
+          baseStats.boardSupport = Math.max(0, Math.min(100, (baseStats.boardSupport ?? 0) - 50));
+          baseBuffs.push('legacy_issues');
+        }
+        if (team.id === 'man_city') {
+          baseStats.dressingRoom = Math.max(0, Math.min(100, (baseStats.dressingRoom ?? 0) - 50));
+          baseBuffs.push('legacy_issues_mop');
+        }
       }
 
       if (team && team.id === 'chelsea') {
@@ -1013,6 +1762,13 @@ function gameReducer(state, action) {
       if (team && team.id === 'dortmund') {
         baseBuffs.push('dortmund_emma_camera');
         baseBuffs.push('dortmund_unlicensed');
+      }
+      if (team && team.id === 'fc_barcelona') {
+        baseBuffs.push('barca_board_take');
+      }
+
+      if (team && team.id === 'man_city') {
+        baseBuffs.push('man_city_auto_flirt');
       }
 
       if (team && team.id === 'ac_milan') {
@@ -1033,6 +1789,20 @@ function gameReducer(state, action) {
         baseBuffs.push('bayern_committee');
         baseBuffs.push('bayern_history_proof');
         nextStartSpecialState = { ...nextStartSpecialState, bayernDressingRoomRevealed: false, bayernCommitteeRemoved: false };
+      }
+
+      if (team && team.id === 'liverpool') {
+        if (isKloppName(action.payload.playerName)) {
+          baseBuffs.push('kop_freeze_season');
+          nextStartSpecialState = { ...nextStartSpecialState, kopFreezeDurationQuarters: 4 };
+        } else {
+          baseBuffs.push('kop_freeze_quarter');
+          nextStartSpecialState = { ...nextStartSpecialState, kopFreezeDurationQuarters: 1 };
+        }
+
+        if (isAlonsoName(action.payload.playerName)) {
+          baseBuffs.push('istanbul_kiss');
+        }
       }
 
       const leagueId = team?.leagueId || 'epl';
@@ -1057,10 +1827,21 @@ function gameReducer(state, action) {
         currentEvent: {
           id: 'intro',
           title: '欢迎执教',
-          description: '【经过漫长的拉扯和谈判，教练[名字]终于下树，[俱乐部]将在[执教理念]的理念下迎来新的挑战。这位新教练能在此坚持多久呢？[俱乐部]能夺得本赛季的冠军吗？让我们拭目以待！】',
+          description: '经过漫长的拉扯和谈判，教练[名字]终于下树，[俱乐部]将在[执教理念]的理念下迎来新的挑战。这位新教练能在此坚持多久呢？[俱乐部]能夺得本赛季的冠军吗？让我们拭目以待！',
           options: [{ text: '开始', effects: {} }]
         }
       };
+
+      if (team && team.id === 'fc_barcelona') {
+        nextStartState = {
+          ...nextStartState,
+          youthAcademyUnlocked: true,
+          youthAcademyUnlockPending: false,
+          youthAcademyPlayer: generateYouthPlayer({ techMin: 4, techMax: 8 }),
+          youthSquadPlayers: [],
+          youthRefreshUsedThisQuarter: false
+        };
+      }
 
       if (team && team.id === 'dortmund') {
         nextStartState.decisionPoints = 2;
@@ -1069,6 +1850,24 @@ function gameReducer(state, action) {
       if (team && team.id === 'arsenal' && isMourinhoName(action.payload.playerName)) {
         nextStartState = unlockAchievementInState(nextStartState, 'mourinho_arsenal');
       }
+
+       if (team && team.id === 'chelsea' && isMourinhoName(action.payload.playerName)) {
+         nextStartState = unlockAchievementInState(nextStartState, 'mourinho_chelsea');
+       }
+
+       if (team && team.id === 'fc_barcelona' && isXaviName(action.payload.playerName)) {
+         nextStartState = unlockAchievementInState(nextStartState, 'xavi_barca');
+       }
+       if (team && team.id === 'fc_barcelona' && isGuardiolaName(action.payload.playerName)) {
+         nextStartState = unlockAchievementInState(nextStartState, 'guardiola_barca');
+       }
+       if (team && team.id === 'fc_barcelona' && isCruyffName(action.payload.playerName)) {
+         nextStartState = unlockAchievementInState(nextStartState, 'cruyff_barca');
+       }
+
+       if (isAncelottiName(action.payload.playerName)) {
+         nextStartState = unlockAchievementInState(nextStartState, 'ancelotti_eye');
+       }
 
       if (team && team.id === 'ac_milan' && isMaldiniName(action.payload.playerName)) {
         nextStartState = unlockAchievementInState(nextStartState, 'maldini_coach_milan');
@@ -1084,6 +1883,13 @@ function gameReducer(state, action) {
         nextStartState = unlockAchievementInState(nextStartState, 'pique_real_madrid');
       }
 
+      if (team && team.id === 'man_city' && isGuardiolaName(action.payload.playerName)) {
+        nextStartState = unlockAchievementInState(nextStartState, 'guardiola_man_city');
+      }
+      if (team && team.id === 'man_city' && isMourinhoName(action.payload.playerName) && action.payload.confirmMourinho === true) {
+        nextStartState = unlockAchievementInState(nextStartState, 'mourinho_man_city');
+      }
+
       if (isNevilleName(action.payload.playerName) || isCarragherName(action.payload.playerName)) {
         nextStartState = unlockAchievementInState(nextStartState, 'neville_carragher_coach');
       }
@@ -1092,6 +1898,7 @@ function gameReducer(state, action) {
       }
 
       return nextStartState;
+    }
 
     case 'OPEN_GERRARD_LETTER':
         return {
@@ -1148,8 +1955,8 @@ function gameReducer(state, action) {
         return next ? next : state;
     }
 
-    case 'UPDATE_STATS':
-      const newStats = { ...state.stats };
+    case 'UPDATE_STATS': {
+      let newStats = { ...state.stats };
       Object.keys(action.payload).forEach(key => {
         const redirected = redirectNegativeStatEffect(newStats, key, action.payload[key]);
         const targetKey = redirected.key;
@@ -1164,7 +1971,7 @@ function gameReducer(state, action) {
           } else if (targetKey === 'tactics') {
              newStats[targetKey] = Math.max(0, Math.min(10, newStats[targetKey]));
           } else if (targetKey === 'funds') {
-             newStats[targetKey] = Math.max(0, newStats[targetKey]); // Funds cannot be negative
+             newStats[targetKey] = clampFunds(newStats[targetKey], state.currentTeam?.id); // Funds cannot be negative
           } else if (targetKey === 'injuryRisk') {
              newStats[targetKey] = Math.max(0, newStats[targetKey]);
           }
@@ -1173,12 +1980,24 @@ function gameReducer(state, action) {
 
       enforceRainbowArmband(newStats, state.activeBuffs);
       enforceEmmaCamera(newStats, state.activeBuffs);
+      enforceYouthUnity10Floor(newStats, state.youthSquadPlayers);
+
+      let nextSpecialStateAfterUpdate = state.specialMechanicState;
+      {
+        const adjusted = applyKopFreeze({
+          stats: newStats,
+          activeBuffs: state.activeBuffs,
+          specialMechanicState: nextSpecialStateAfterUpdate
+        });
+        newStats = adjusted.stats;
+        nextSpecialStateAfterUpdate = adjusted.specialMechanicState;
+      }
 
       const nextBuffsAfterUpdate = syncDerivedBuffs({
         activeBuffs: state.activeBuffs,
         stats: newStats,
         teamId: state.currentTeam?.id,
-        specialMechanicState: state.specialMechanicState
+        specialMechanicState: nextSpecialStateAfterUpdate
       });
       
       // Check Game Over conditions
@@ -1199,8 +2018,40 @@ function gameReducer(state, action) {
         stats: newStats,
         gameState: nextGameStateAfterUpdate,
         activeBuffs: nextBuffsAfterUpdate,
-        estimatedRanking: nextEstimatedRankingAfterUpdate
+        estimatedRanking: nextEstimatedRankingAfterUpdate,
+        specialMechanicState: nextSpecialStateAfterUpdate
       };
+
+      if (nextGameStateAfterUpdate === 'gameover' && !state.gameoverOverrideText) {
+        const teamId = state.currentTeam?.id;
+
+        if (!state.artetaEasterEggTriggered && teamId === 'arsenal' && isArtetaName(state.playerName)) {
+          const firedBy = newStats.dressingRoom <= 0 ? 'dressingRoom' : 'boardSupport';
+          nextStateAfterUpdate = unlockAchievementInState({
+            ...nextStateAfterUpdate,
+            gameState: 'playing',
+            currentEvent: buildArtetaExHusbandEvent({ firedBy }),
+            queuedEvent: null,
+            pendingGameState: null,
+            artetaEasterEggTriggered: true
+          }, 'arteta_ex_husband');
+        } else if (
+          !state.easterEggTriggered &&
+          isAlonsoName(state.playerName) &&
+          teamId &&
+          teamId !== 'man_utd' &&
+          teamId !== 'liverpool'
+        ) {
+          nextStateAfterUpdate = {
+            ...nextStateAfterUpdate,
+            gameState: 'playing',
+            currentEvent: buildGerrardLetterEvent(),
+            queuedEvent: null,
+            pendingGameState: 'gameover',
+            easterEggTriggered: true
+          };
+        }
+      }
 
       if (nextGameStateAfterUpdate === 'gameover' && state.currentTeam?.id === 'man_utd' && isAlonsoName(state.playerName)) {
         nextStateAfterUpdate = unlockAchievementInState(nextStateAfterUpdate, 'alonso_manutd_fired');
@@ -1218,11 +2069,24 @@ function gameReducer(state, action) {
       }
 
       return nextStateAfterUpdate;
+    }
 
-    case 'TAKE_DECISION':
+    case 'TAKE_DECISION': {
         const { decisionId, type, effects, optionId, optionDescription } = action.payload;
 
         let effectiveEffects = effects;
+
+        const youthProfile = getYouthSquadProfile(state.youthSquadPlayers);
+
+        if (decisionId === 'training' && youthProfile.hasArmbandDiligence10) {
+          const base = effectiveEffects || {};
+          const t = typeof base.tactics === 'number' ? base.tactics : 0;
+          effectiveEffects = { ...base, tactics: t + 0.5 };
+        }
+
+        if (youthProfile.hasArmbandAuthority10 && effectiveEffects && typeof effectiveEffects.authority === 'number' && effectiveEffects.authority < 0) {
+          effectiveEffects = { ...effectiveEffects, authority: 0 };
+        }
 
         if (
           decisionId === 'flirtation' &&
@@ -1231,6 +2095,15 @@ function gameReducer(state, action) {
         ) {
           effectiveEffects = { ...(effectiveEffects || {}), tabloid: 1, tactics: 0.5 };
           delete effectiveEffects.chance_tabloid;
+        }
+
+        if (decisionId === 'flirtation' && optionId !== 'legend_flirt') {
+          const extraTabloid = getYouthFlirtExtraTabloid(state.youthSquadPlayers);
+          if (extraTabloid > 0) {
+            const base = effectiveEffects || {};
+            const t = typeof base.tabloid === 'number' ? base.tabloid : 0;
+            effectiveEffects = { ...base, tabloid: t + extraTabloid };
+          }
         }
         
         // Check if decision limit reached (max 3 per month)
@@ -1261,8 +2134,12 @@ function gameReducer(state, action) {
             return state;
         }
 
-        if (effectiveEffects?.funds < 0 && (state.stats.funds + effectiveEffects.funds) < 0) {
-            return state;
+        if (
+          state.currentTeam?.id !== 'fc_barcelona' &&
+          effectiveEffects?.funds < 0 &&
+          (state.stats.funds + effectiveEffects.funds) < 0
+        ) {
+          return state;
         }
 
         // Special mechanics: each season can open/close once
@@ -1280,12 +2157,11 @@ function gameReducer(state, action) {
             }
         }
 
-        // Apply effects
+        // Month Update: Advance time and apply effects
         const statsAfterDecision = { ...state.stats };
         let opponentTacticsBoostThisMonthAfterDecision = state.opponentTacticsBoostThisMonth || 0;
         let nextLeagueOpponentsAfterDecision = state.leagueOpponents;
         let nextCrossLeagueTacticsInflation = state.crossLeagueTacticsInflation || 0;
-        
         // Special logic for "explode" (set board support to 1)
         if (effectiveEffects.set_board_support_to_1) {
             statsAfterDecision.boardSupport = 1;
@@ -1334,7 +2210,7 @@ function gameReducer(state, action) {
                 } else if (targetKey === 'tactics') {
                     statsAfterDecision[targetKey] = Math.max(0, Math.min(10, statsAfterDecision[targetKey]));
                 } else if (targetKey === 'funds') {
-                    statsAfterDecision[targetKey] = Math.max(0, statsAfterDecision[targetKey]);
+                    statsAfterDecision[targetKey] = clampFunds(statsAfterDecision[targetKey], state.currentTeam?.id);
                 } else if (targetKey === 'injuryRisk') {
                     statsAfterDecision[targetKey] = Math.max(0, statsAfterDecision[targetKey]);
                 }
@@ -1363,7 +2239,6 @@ function gameReducer(state, action) {
         // Handle special mechanics (Canteen/Roof)
         let newSpecialState = { ...state.specialMechanicState };
         if (effectiveEffects.special_canteen) {
-            const actionKey = effectiveEffects.special_canteen;
             newSpecialState.canteenOpen = effects.special_canteen === 'open';
             newSpecialState.canteenChangedThisSeason = {
                 ...(newSpecialState.canteenChangedThisSeason || { open: false, close: false }),
@@ -1387,6 +2262,18 @@ function gameReducer(state, action) {
         if (newTabloidCount >= 3) {
             newTabloidCount = 0;
             scandalEvent = buildTabloidBreakingEvent();
+        }
+
+        {
+          const adjusted = applyKopFreeze({
+            stats: statsAfterDecision,
+            activeBuffs: newActiveBuffs,
+            specialMechanicState: newSpecialState
+          });
+          newSpecialState = adjusted.specialMechanicState;
+          if (adjusted.stats) {
+            statsAfterDecision.boardSupport = adjusted.stats.boardSupport;
+          }
         }
 
         const nextCoffeeRefUsedThisQuarterAfterDecision = state.coffeeRefUsedThisQuarter || decisionId === 'coffee_ref';
@@ -1422,6 +2309,7 @@ function gameReducer(state, action) {
 
         enforceRainbowArmband(statsAfterDecision, newActiveBuffs);
         enforceEmmaCamera(statsAfterDecision, newActiveBuffs);
+        enforceYouthUnity10Floor(statsAfterDecision, state.youthSquadPlayers);
 
         const syncedBuffsAfterDecision = syncDerivedBuffs({
           activeBuffs: newActiveBuffs,
@@ -1484,8 +2372,235 @@ function gameReducer(state, action) {
         }
 
         return nextStateAfterDecision;
+    }
 
-    case 'NEXT_MONTH':
+    case 'YOUTH_SET_NAME': {
+        const scope = action.payload?.scope;
+        const rawName = String(action.payload?.name ?? '');
+        const name = rawName.trim().slice(0, 10);
+
+        if (scope === 'academy') {
+          const p = normalizeYouthPlayer(state.youthAcademyPlayer);
+          if (!p) return state;
+          return { ...state, youthAcademyPlayer: { ...p, name } };
+        }
+
+        if (scope === 'squad') {
+          const id = action.payload?.id;
+          if (!id) return state;
+          const arr = Array.isArray(state.youthSquadPlayers) ? state.youthSquadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+          const idx = arr.findIndex(p => p.id === id);
+          if (idx < 0) return state;
+          const currentName = String(arr[idx]?.name ?? '').trim();
+          if (currentName) return state;
+          const next = arr.map(p => (p.id === id ? { ...p, name } : p));
+          return { ...state, youthSquadPlayers: next };
+        }
+
+        return state;
+    }
+
+    case 'YOUTH_SET_TRAITS': {
+        const scope = action.payload?.scope;
+        const apply = (p) => {
+          if (!p) return p;
+          if (p.traitRerollUsed) return p;
+          const next = { ...p, traitRerollUsed: true };
+          if (action.payload?.positiveTraitId !== undefined) next.positiveTraitId = action.payload.positiveTraitId;
+          if (action.payload?.negativeTraitId !== undefined) next.negativeTraitId = action.payload.negativeTraitId;
+          if (action.payload?.specialTraitId !== undefined) next.specialTraitId = action.payload.specialTraitId;
+          return next;
+        };
+
+        if (scope === 'academy') {
+          const p = normalizeYouthPlayer(state.youthAcademyPlayer);
+          if (!p) return state;
+          return { ...state, youthAcademyPlayer: apply(p) };
+        }
+
+        if (scope === 'squad') {
+          const id = action.payload?.id;
+          if (!id) return state;
+          const arr = Array.isArray(state.youthSquadPlayers) ? state.youthSquadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+          const exists = arr.some(p => p.id === id);
+          if (!exists) return state;
+          const next = arr.map(p => (p.id === id ? apply(p) : p));
+          return { ...state, youthSquadPlayers: next };
+        }
+
+        return state;
+    }
+
+    case 'YOUTH_APPLY_DRAFT': {
+        const nextAcademy = normalizeYouthPlayer(action.payload?.academyPlayer);
+        const currentSquad = Array.isArray(state.youthSquadPlayers)
+          ? state.youthSquadPlayers.map(normalizeYouthPlayer).filter(Boolean)
+          : [];
+        const currentById = new Map(currentSquad.map(p => [p.id, p]));
+
+        const mergeDynamic = (draftPlayer) => {
+          const d = normalizeYouthPlayer(draftPlayer);
+          if (!d) return null;
+          const cur = currentById.get(d.id);
+          if (!cur) return d;
+          // Preserve dynamic fields that can change outside the modal (matches/events/season rollover)
+          // while keeping draft-controlled fields (role/armband/traits/name).
+          return {
+            ...d,
+            age: clampInt(cur.age ?? d.age, 0, 99),
+            tech: clampNumber(cur.tech ?? d.tech, 0, 10),
+            freePoints: clampInt(d.freePoints ?? cur.freePoints, 0, 9999),
+            starterMatches: clampInt(cur.starterMatches ?? d.starterMatches, 0, 999999),
+            benchMatches: clampInt(cur.benchMatches ?? d.benchMatches, 0, 999999),
+            moleCaughtCount: clampInt(cur.moleCaughtCount ?? d.moleCaughtCount, 0, 999999),
+            ecoMissingSeasonYear: clampInt(cur.ecoMissingSeasonYear ?? d.ecoMissingSeasonYear, 0, 99),
+            ecoMissingQuarter: clampInt(cur.ecoMissingQuarter ?? d.ecoMissingQuarter, 0, 3)
+          };
+        };
+
+        const nextSquad = Array.isArray(action.payload?.squadPlayers)
+          ? action.payload.squadPlayers.map(mergeDynamic).filter(Boolean).slice(0, getYouthSquadMax(state.currentTeam?.id))
+          : currentSquad.slice(0, getYouthSquadMax(state.currentTeam?.id));
+        return {
+          ...state,
+          youthAcademyPlayer: nextAcademy,
+          youthSquadPlayers: nextSquad
+        };
+    }
+
+    case 'YOUTH_ALLOCATE_POINT': {
+        const scope = action.payload?.scope;
+        const key = action.payload?.key;
+        if (!['unity', 'authority', 'diligence'].includes(key)) return state;
+
+        const apply = (player) => {
+          const p = normalizeYouthPlayer(player);
+          if (!p) return null;
+          if ((p.freePoints ?? 0) <= 0) return p;
+          if ((p[key] ?? 0) >= 10) return p;
+          return {
+            ...p,
+            freePoints: clampInt((p.freePoints ?? 0) - 1, 0, 9999),
+            [key]: clampInt((p[key] ?? 0) + 1, 0, 10)
+          };
+        };
+
+        if (scope === 'academy') {
+          // Free points can only be allocated to squad youth.
+          return state;
+        }
+
+        if (scope === 'squad') {
+          const id = action.payload?.id;
+          if (!id) return state;
+          const arr = Array.isArray(state.youthSquadPlayers) ? state.youthSquadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+          const next = arr.map(p => (p.id === id ? apply(p) : p)).filter(Boolean);
+          return { ...state, youthSquadPlayers: next };
+        }
+
+        return state;
+    }
+
+    case 'YOUTH_SET_ROLE': {
+        const id = action.payload?.id;
+        const role = action.payload?.role;
+        if (!id) return state;
+        if (role !== 'starter' && role !== 'bench') return state;
+        const arr = Array.isArray(state.youthSquadPlayers) ? state.youthSquadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+        const next = arr.map(p => (p.id === id ? { ...p, role } : p));
+        return { ...state, youthSquadPlayers: next };
+    }
+
+    case 'YOUTH_TOGGLE_ARMBAND': {
+        const id = action.payload?.id;
+        if (!id) return state;
+        const arr = Array.isArray(state.youthSquadPlayers) ? state.youthSquadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+        const exists = arr.some(p => p.id === id);
+        if (!exists) return state;
+        const currentlyOn = arr.some(p => p.id === id && p.hasArmband);
+        if (!currentlyOn) {
+          const target = arr.find(p => p.id === id);
+          const auth = clampInt(target?.authority ?? 0, 0, 10);
+          if (auth < 5) return state;
+        }
+        const next = arr.map(p => {
+          if (p.id === id) return { ...p, hasArmband: !currentlyOn };
+          return { ...p, hasArmband: false };
+        });
+        return { ...state, youthSquadPlayers: next };
+    }
+
+    case 'YOUTH_PROMOTE': {
+        const payloadPlayer = normalizeYouthPlayer(action.payload?.player);
+        const p = payloadPlayer || normalizeYouthPlayer(state.youthAcademyPlayer);
+        if (!p) return state;
+        if (!String(p.name || '').trim()) return state;
+        const arr = Array.isArray(state.youthSquadPlayers) ? state.youthSquadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+        const limit = getYouthSquadAddLimit(state.currentTeam?.id, state.stats?.funds);
+        if (arr.length >= limit) return state;
+        // Squad-only system: joining the squad grants 1 free point.
+        const promoted = { ...p, freePoints: clampInt((p.freePoints ?? 0) + 1, 0, 9999) };
+        const nextSquad = [...arr, { ...promoted, role: 'bench', hasArmband: false }].slice(0, getYouthSquadMax(state.currentTeam?.id));
+        const nextState = { ...state, youthAcademyPlayer: null, youthSquadPlayers: nextSquad };
+        return applyYouthPromotionAchievements(nextState, promoted);
+    }
+
+    case 'YOUTH_SELL': {
+        const scope = action.payload?.scope;
+        const calcPrice = (player) => {
+          const tech = clampNumber(player?.tech ?? 0, 0, 10);
+          return 10 + Math.max(0, tech - 4) * 10;
+        };
+
+        if (scope === 'academy') {
+          const p = normalizeYouthPlayer(state.youthAcademyPlayer);
+          if (!p) return state;
+          const price = calcPrice(p);
+          return {
+            ...state,
+            youthAcademyPlayer: null,
+            stats: { ...(state.stats || {}), funds: clampFunds((state.stats?.funds ?? 0) + price, state.currentTeam?.id) }
+          };
+        }
+
+        if (scope === 'squad') {
+          const id = action.payload?.id;
+          if (!id) return state;
+          const arr = Array.isArray(state.youthSquadPlayers) ? state.youthSquadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+          const p = arr.find(pp => pp.id === id);
+          if (!p) return state;
+          const price = calcPrice(p);
+          const next = arr.filter(pp => pp.id !== id);
+          return {
+            ...state,
+            youthSquadPlayers: next,
+            stats: { ...(state.stats || {}), funds: clampFunds((state.stats?.funds ?? 0) + price, state.currentTeam?.id) }
+          };
+        }
+
+        return state;
+    }
+
+    case 'YOUTH_REFRESH': {
+        if (!state.youthAcademyUnlocked) return state;
+        if (state.youthAcademyPlayer) return state;
+        if (state.youthRefreshUsedThisQuarter) return state;
+        const funds = state.stats?.funds ?? 0;
+        if (funds < 30) return state;
+        const squad = Array.isArray(state.youthSquadPlayers) ? state.youthSquadPlayers.map(normalizeYouthPlayer).filter(Boolean) : [];
+        const isBarca = state.currentTeam?.id === 'fc_barcelona';
+        if (!isBarca && squad.length > 0) return state;
+        return {
+          ...state,
+          youthAcademyPlayer: state.currentTeam?.id === 'fc_barcelona'
+            ? generateYouthPlayer({ techMin: 4, techMax: 8 })
+            : generateYouthPlayer(),
+          youthRefreshUsedThisQuarter: true,
+          stats: { ...(state.stats || {}), funds: clampFunds(funds - 30, state.currentTeam?.id) }
+        };
+    }
+
+    case 'NEXT_MONTH': {
         let nextMonth = state.month + 1;
         let nextQuarter = state.quarter;
         let nextYear = state.year;
@@ -1500,6 +2615,10 @@ function gameReducer(state, action) {
         let nextActiveBuffs = [...state.activeBuffs];
         let pointsThisQuarterAfterMonth = state.pointsThisQuarter;
         let forcedEvent = null;
+        let nextRelegationFinalRanking = state.relegationFinalRanking;
+        let nextYouthRandomEventSeasonYear = state.youthRandomEventSeasonYear;
+        let nextMixerYouthEventSeasonYear = state.mixerYouthEventSeasonYear;
+        let nextMixerMediaEducateCount = state.mixerMediaEducateCount;
         let queuedEvent = null;
         let nextRandomEventsThisYear = [...(state.randomEventsThisYear || [])];
         let nextLastRandomEventId = state.lastRandomEventId;
@@ -1510,6 +2629,10 @@ function gameReducer(state, action) {
         let nextPendingSeasonReset = state.pendingSeasonReset;
         let nextCoffeeRefUsedThisQuarter = state.coffeeRefUsedThisQuarter;
         let nextExplodeUsedThisQuarter = state.explodeUsedThisQuarter;
+
+        let nextYouthRefreshUsedThisQuarter = Boolean(state.youthRefreshUsedThisQuarter);
+        const youthMaxThisMonth = getYouthSquadMax(state.currentTeam?.id);
+        let nextYouthSquadPlayers = Array.isArray(state.youthSquadPlayers) ? state.youthSquadPlayers.map(normalizeYouthPlayer).filter(Boolean).slice(0, youthMaxThisMonth) : [];
 
         let nextUclActive = state.uclActive;
         let nextUclAlive = state.uclAlive;
@@ -1556,6 +2679,26 @@ function gameReducer(state, action) {
             nextActiveBuffs = nextActiveBuffs.filter(b => b !== 'media_darling' && b !== 'media_hostile');
         }
 
+        const youthMonthlyProfile = getYouthSquadProfile(nextYouthSquadPlayers);
+        if (youthMonthlyProfile.monthlyAuthorityBonus > 0) {
+          statsAfterMonth.authority = Math.max(0, Math.min(100, (statsAfterMonth.authority ?? 0) + youthMonthlyProfile.monthlyAuthorityBonus));
+        }
+        if (youthMonthlyProfile.monthlyDressingRoomBonus > 0) {
+          statsAfterMonth.dressingRoom = Math.max(0, Math.min(100, (statsAfterMonth.dressingRoom ?? 0) + youthMonthlyProfile.monthlyDressingRoomBonus));
+        }
+
+        if (nextActiveBuffs.includes('union_stun_iron')) {
+          statsAfterMonth.authority = Math.max(0, Math.min(100, (statsAfterMonth.authority ?? 0) + 5));
+        }
+
+        {
+          const teamId = state.currentTeam?.id;
+          const bonus = getYouthTraitMonthlyBonuses(nextYouthSquadPlayers);
+          if (bonus.boardSupport > 0) statsAfterMonth.boardSupport = Math.max(0, Math.min(100, (statsAfterMonth.boardSupport ?? 0) + bonus.boardSupport));
+          if (bonus.mediaSupport > 0) statsAfterMonth.mediaSupport = Math.max(0, Math.min(100, (statsAfterMonth.mediaSupport ?? 0) + bonus.mediaSupport));
+          if (bonus.funds > 0) statsAfterMonth.funds = clampFunds((statsAfterMonth.funds ?? 0) + bonus.funds, teamId);
+        }
+
         // Dressing Room Turmoil (< 40)
         if (statsAfterMonth.dressingRoom < 40) {
             if (!nextActiveBuffs.includes('turmoil')) nextActiveBuffs.push('turmoil');
@@ -1579,7 +2722,7 @@ function gameReducer(state, action) {
                     }
                 }
             }
-            
+
             nextTabloidCount += 1;
             if (nextTabloidCount >= 3) {
                 nextTabloidCount = 0;
@@ -1627,6 +2770,8 @@ function gameReducer(state, action) {
         const oppById = new Map(nextLeagueOpponents.map(o => [o.id, o]));
         const playerId = state.currentTeam?.id;
 
+        const leagueCursorStart = nextLeagueRoundCursor;
+
         for (let r = 0; r < roundsThisMonth; r += 1) {
           const roundIndex = nextLeagueRoundCursor;
           const round = nextLeagueSchedule[nextLeagueRoundCursor];
@@ -1642,8 +2787,12 @@ function gameReducer(state, action) {
             const homeIsPlayer = homeId === playerId;
             const awayIsPlayer = awayId === playerId;
 
-            const homeBase = homeIsPlayer ? clampNumber(statsAfterMonth.tactics, 0, 10) : clampNumber(oppById.get(homeId)?.tactics, 0, 10);
-            const awayBase = awayIsPlayer ? clampNumber(statsAfterMonth.tactics, 0, 10) : clampNumber(oppById.get(awayId)?.tactics, 0, 10);
+            const bestStarterTech = getBestYouthStarterTech(nextYouthSquadPlayers, { year: state.year, quarter: state.quarter, ucl: false });
+            const playerTacticsDelta = computeYouthTechTacticsDelta(bestStarterTech, statsAfterMonth.tactics);
+            const playerTacticsForMatch = clampNumber((statsAfterMonth.tactics ?? 0) + playerTacticsDelta, 0, 10);
+
+            const homeBase = homeIsPlayer ? playerTacticsForMatch : clampNumber(oppById.get(homeId)?.tactics, 0, 10);
+            const awayBase = awayIsPlayer ? playerTacticsForMatch : clampNumber(oppById.get(awayId)?.tactics, 0, 10);
 
             const homeEff = homeBase;
             const awayEff = awayBase - awayPenalty;
@@ -1689,6 +2838,9 @@ function gameReducer(state, action) {
           nextLeagueRoundCursor += 1;
         }
 
+        const leagueMatchesPlayedThisMonth = Math.max(0, nextLeagueRoundCursor - leagueCursorStart);
+        nextYouthSquadPlayers = applyYouthMatchesToSquad(nextYouthSquadPlayers, leagueMatchesPlayedThisMonth, { year: state.year, quarter: state.quarter, ucl: false });
+
         nextLeagueOpponents = Array.from(oppById.values()).map(o => {
           const rr = Math.random();
           let delta = 0;
@@ -1704,12 +2856,85 @@ function gameReducer(state, action) {
         pointsThisQuarterAfterMonth += pointsGainedThisMonth;
 
         // Quarter logic
+        let didFinishQuarter = false;
         if (nextMonth > 3) {
+            didFinishQuarter = true;
             nextMonth = 1;
             nextQuarter += 1;
             shouldAutoSave = true;
             nextCoffeeRefUsedThisQuarter = false;
             nextExplodeUsedThisQuarter = false;
+            nextYouthRefreshUsedThisQuarter = false;
+
+            {
+              const idx = nextYouthSquadPlayers.findIndex(p => (p?.negativeTraitId || '') === 'mole' && clampInt(p?.moleCaughtCount ?? 0, 0, 999999) < 1);
+              if (idx >= 0) {
+                const effects = { dressingRoom: -10, boardSupport: 2, authority: 5, mediaSupport: -2 };
+                Object.keys(effects).forEach(key => {
+                  const redirected = redirectNegativeStatEffect(statsAfterMonth, key, effects[key]);
+                  const targetKey = redirected.key;
+                  const delta = redirected.delta;
+                  if (statsAfterMonth[targetKey] !== undefined) {
+                    statsAfterMonth[targetKey] += delta;
+                    if (['boardSupport', 'dressingRoom', 'mediaSupport', 'authority'].includes(targetKey)) {
+                      statsAfterMonth[targetKey] = Math.max(0, Math.min(100, statsAfterMonth[targetKey]));
+                    } else if (targetKey === 'tactics') {
+                      statsAfterMonth[targetKey] = Math.max(0, Math.min(10, statsAfterMonth[targetKey]));
+                    } else if (targetKey === 'funds') {
+                      statsAfterMonth[targetKey] = clampFunds(statsAfterMonth[targetKey], state.currentTeam?.id);
+                    } else if (targetKey === 'injuryRisk') {
+                      statsAfterMonth[targetKey] = Math.max(0, statsAfterMonth[targetKey]);
+                    }
+                  }
+                });
+
+                if (Math.random() < 0.1) {
+                  statsAfterMonth.dressingRoom = Math.max(0, Math.min(100, (statsAfterMonth.dressingRoom ?? 0) - 20));
+                  nextYouthSquadPlayers = nextYouthSquadPlayers.map((p, i) => (i === idx ? { ...p, moleCaughtCount: 1 } : p));
+                }
+              }
+            }
+
+            if (nextActiveBuffs.includes('union_stun_gun')) {
+              statsAfterMonth.authority = Math.max(0, Math.min(100, (statsAfterMonth.authority ?? 0) + 5));
+            }
+
+            if (state.currentTeam?.id === 'ac_milan' && (nextQuarter === 2 || nextQuarter === 3)) {
+              const all = ['milan_baresi', 'milan_nesta', 'milan_maldini'];
+              const usedFromState = Array.isArray(nextSpecialState?.milanLegendsUsedThisSeason)
+                ? nextSpecialState.milanLegendsUsedThisSeason.filter(Boolean)
+                : [];
+              const usedFromBuffs = all.filter(id => nextActiveBuffs.includes(id));
+              const used = Array.from(new Set([...usedFromState, ...usedFromBuffs]));
+              const remaining = all.filter(id => !used.includes(id));
+              if (remaining.length > 0) {
+                const picked = remaining[Math.floor(Math.random() * remaining.length)];
+                used.push(picked);
+                nextSpecialState = { ...(nextSpecialState || {}), milanLegendsUsedThisSeason: used };
+                if (!nextActiveBuffs.includes(picked)) nextActiveBuffs.push(picked);
+              } else {
+                nextSpecialState = { ...(nextSpecialState || {}), milanLegendsUsedThisSeason: used };
+              }
+            }
+
+            {
+              const youthQuarterlyProfile = getYouthSquadProfile(nextYouthSquadPlayers);
+              if (youthQuarterlyProfile.quarterlyTacticsBonus > 0) {
+                statsAfterMonth.tactics = Math.max(0, Math.min(10, (statsAfterMonth.tactics ?? 0) + youthQuarterlyProfile.quarterlyTacticsBonus));
+              }
+            }
+
+            {
+              const q = getYouthTraitQuarterlyModifiers(nextYouthSquadPlayers);
+              if (q.funds !== 0) {
+                statsAfterMonth.funds = clampFunds((statsAfterMonth.funds ?? 0) + q.funds, state.currentTeam?.id);
+              }
+
+              if (q.injuryRisk > 0) {
+                if (statsAfterMonth.injuryRisk === undefined) statsAfterMonth.injuryRisk = 0;
+                statsAfterMonth.injuryRisk = Math.max(0, (statsAfterMonth.injuryRisk ?? 0) + q.injuryRisk);
+              }
+            }
 
             if (state.year >= 2) {
                 if (statsAfterMonth.injuryRisk === undefined) statsAfterMonth.injuryRisk = 0;
@@ -1781,35 +3006,17 @@ function gameReducer(state, action) {
         
         // Year logic
         if (nextQuarter > 3) {
-            nextQuarter = 1;
-            nextYear += 1;
-            // Season Finale Logic would go here
-
             // Mark season reset to be applied after confirming season settlement event
             nextPendingSeasonReset = true;
             seasonSettlementPoints = statsAfterMonth.points;
             pointsThisQuarterAfterMonth = 0;
 
-            // Reset league table immediately for the new season display.
-            // The season settlement event will still show last season's points via seasonSettlementPoints.
-            statsAfterMonth.points = 0;
-            if (Array.isArray(nextLeagueOpponents) && nextLeagueOpponents.length > 0) {
-                nextLeagueOpponents = nextLeagueOpponents.map(o => ({ ...o, points: 0 }));
-            }
-            nextLeagueRoundCursor = 0;
-            nextLeagueMatchResults = {};
-
-            // Reset per-season toggles, but keep current on/off states.
-            nextSpecialState = {
-                ...nextSpecialState,
-                canteenChangedThisSeason: { open: false, close: false },
-                roofChangedThisSeason: { open: false, close: false },
-                milanLegendsUsedThisSeason: []
-            };
-
-            if (state.currentTeam?.id === 'dortmund') {
-                nextActiveBuffs = nextActiveBuffs.filter(b => b !== 'dortmund_unlicensed');
-            }
+            // Keep UI time/schedule on the current season until the season settlement is confirmed.
+            nextMonth = state.month;
+            nextQuarter = state.quarter;
+            nextYear = state.year;
+            nextCoffeeRefUsedThisQuarter = state.coffeeRefUsedThisQuarter;
+            nextExplodeUsedThisQuarter = state.explodeUsedThisQuarter;
         }
 
         let nextAchievementsState = state;
@@ -1819,6 +3026,9 @@ function gameReducer(state, action) {
           }
           if (state.currentTeam?.id === 'ac_milan') {
             nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'ac_milan_5_years');
+          }
+          if (state.currentTeam?.id === 'fc_barcelona') {
+            nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'barca_5_years');
           }
           if (state.currentTeam?.id === 'dortmund') {
             nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'dortmund_5_years');
@@ -1851,7 +3061,7 @@ function gameReducer(state, action) {
 
         // Update ranking every month based on league table when available.
         if (nextPendingSeasonReset) {
-            nextEstimatedRanking = 1;
+            nextEstimatedRanking = quarterEstimatedRanking ?? nextEstimatedRanking;
         } else if (Array.isArray(nextLeagueOpponents) && nextLeagueOpponents.length > 0) {
             nextEstimatedRanking = computeRankingFromLeague({
               playerPoints: statsAfterMonth.points,
@@ -1867,9 +3077,68 @@ function gameReducer(state, action) {
         const globalEvents = eventsData.randomEvents.global;
         const teamEvents = eventsData.randomEvents.teamSpecific[state.currentTeam.id] || [];
         const allEvents = [...globalEvents, ...teamEvents];
+
+        let autoFlirtEvent = null;
+        if (didFinishQuarter && Array.isArray(nextActiveBuffs) && nextActiveBuffs.includes('man_city_auto_flirt')) {
+          const flirtDecision = Array.isArray(eventsData.activeDecisions)
+            ? eventsData.activeDecisions.find(d => d && d.id === 'flirtation')
+            : null;
+          const opts = Array.isArray(flirtDecision?.options) ? flirtDecision.options : [];
+          const types = ['rival_coach', 'foreign_coach', 'player'];
+          const used = Array.isArray(nextSpecialState.manCityAutoFlirtUsedTypesThisSeason)
+            ? nextSpecialState.manCityAutoFlirtUsedTypesThisSeason.slice()
+            : [];
+          const pool = used.length < 3 ? types.filter(t => !used.includes(t)) : types;
+          const pickedType = pool.length > 0
+            ? pool[Math.floor(Math.random() * pool.length)]
+            : types[Math.floor(Math.random() * types.length)];
+
+          if (used.length < 3 && !used.includes(pickedType)) {
+            used.push(pickedType);
+            nextSpecialState.manCityAutoFlirtUsedTypesThisSeason = used;
+          }
+
+          const pickedOpt = opts.find(o => o && o.id === pickedType) || null;
+          if (pickedOpt && pickedOpt.effects) {
+            let eff = { ...(pickedOpt.effects || {}) };
+            if (state.year >= 2 && (pickedType === 'rival_coach' || pickedType === 'foreign_coach')) {
+              eff = { ...(eff || {}), tabloid: 1, tactics: 0.5 };
+              delete eff.chance_tabloid;
+            }
+            {
+              const extraTabloid = getYouthFlirtExtraTabloid(nextYouthSquadPlayers);
+              if (extraTabloid > 0) {
+                const baseTab = typeof eff.tabloid === 'number' ? eff.tabloid : 0;
+                eff = { ...(eff || {}), tabloid: baseTab + extraTabloid };
+              }
+            }
+
+            const typeLabel = pickedType === 'rival_coach'
+              ? '同联赛教练'
+              : (pickedType === 'foreign_coach' ? '其他联赛教练' : '球员');
+            autoFlirtEvent = {
+              id: `man_city_auto_flirt_${state.year}_${state.quarter}_${state.month}`,
+              title: '人老实话不多',
+              description: `季度自动触发：和${typeLabel}调情。` + (pickedOpt.description ? `\n\n${pickedOpt.description}` : ''),
+              options: [{
+                id: pickedType,
+                text: '继续',
+                effects: eff,
+                decisionRecord: `risk_${pickedType}`
+              }]
+            };
+          }
+        }
         
+        const unionTriggered = new Set(
+          Array.isArray(nextSpecialState?.unionWeaponEventsTriggered)
+            ? nextSpecialState.unionWeaponEventsTriggered
+            : []
+        );
+
         // Filter events based on conditions
         const validEvents = allEvents.filter(event => {
+            if (event?.id && unionTriggered.has(event.id)) return false;
             if (!event.condition) return true;
 
             if (event.condition.year && state.year < event.condition.year) {
@@ -1890,6 +3159,19 @@ function gameReducer(state, action) {
                 const v = clampNumber(state.stats?.[key], 0, 100);
                 return v >= min;
             }
+
+            if (event.condition.buff && !(state.activeBuffs && state.activeBuffs.includes(event.condition.buff))) {
+              return false;
+            }
+
+            if (Array.isArray(event.condition.teamIds) && event.condition.teamIds.length > 0) {
+              if (!event.condition.teamIds.includes(state.currentTeam?.id)) return false;
+            }
+
+            if (Array.isArray(event.condition.notTeamIds) && event.condition.notTeamIds.length > 0) {
+              if (event.condition.notTeamIds.includes(state.currentTeam?.id)) return false;
+            }
+
             return true;
         });
 
@@ -1911,7 +3193,29 @@ function gameReducer(state, action) {
         const shouldSuppressRandomForUcl = Boolean(
           nextUclActive && nextUclAlive && nextQuarter === 3 && (nextMonth === 1 || uclMatchScheduledThisMonth)
         );
-        const randomEventCount = (isSeasonEnd || shouldSuppressRandomForUcl || canEnterUclAfterQ2) ? 0 : (settlementEvent ? 3 : 1);
+        const baseRandomEventCount = (isSeasonEnd || shouldSuppressRandomForUcl || canEnterUclAfterQ2) ? 0 : (settlementEvent ? 3 : 1);
+
+        const youthPool = (eventsData && eventsData.randomEvents && Array.isArray(eventsData.randomEvents.youth))
+          ? eventsData.randomEvents.youth
+          : [];
+        const youthMixerPool = (eventsData && eventsData.randomEvents && Array.isArray(eventsData.randomEvents.youthMixer))
+          ? eventsData.randomEvents.youthMixer
+          : [];
+
+        const hasAnyYouthInSquad = Array.isArray(nextYouthSquadPlayers) && nextYouthSquadPlayers.length > 0;
+        const primaryYouth = hasAnyYouthInSquad ? normalizeYouthPlayer(nextYouthSquadPlayers[0]) : null;
+        const primaryYouthName = String(primaryYouth?.name || '').trim();
+
+        const canReplaceWithYouthEvent = Boolean(
+          baseRandomEventCount > 0 &&
+          hasAnyYouthInSquad &&
+          youthPool.length > 0 &&
+          clampInt(nextYouthRandomEventSeasonYear ?? 0, 0, 99) !== clampInt(state.year ?? 0, 0, 99)
+        );
+
+        const youthReplaceCount = canReplaceWithYouthEvent ? 1 : 0;
+        const normalRandomEventCount = Math.max(0, baseRandomEventCount - youthReplaceCount);
+        const randomEventCount = normalRandomEventCount;
         const sourcePool = validEvents.length > 0 ? validEvents : allEvents;
         const pickedEvents = [];
         let availablePool = sourcePool.filter(ev => ev && ev.id && !nextRandomEventsThisYear.includes(ev.id) && ev.id !== nextLastRandomEventId);
@@ -1945,6 +3249,66 @@ function gameReducer(state, action) {
             }
 
             if (availablePool.length === 0) break;
+        }
+
+        if (youthReplaceCount === 1) {
+          const youthAvailable = youthPool
+            .filter(ev => {
+              if (!ev || !ev.id) return false;
+              if (nextRandomEventsThisYear.includes(ev.id)) return false;
+              if (ev.id === nextLastRandomEventId) return false;
+              const excluded = Array.isArray(ev.excludeYouthNames) ? ev.excludeYouthNames : [];
+              if (primaryYouthName && excluded.includes(primaryYouthName)) return false;
+              return true;
+            });
+          if (youthAvailable.length > 0) {
+            const pickedIndex = Math.floor(Math.random() * youthAvailable.length);
+            const picked = youthAvailable[pickedIndex];
+            const prepared = cloneAndReplaceEventText(picked, state);
+            if (prepared) {
+              pickedEvents.unshift(prepared);
+              if (prepared.id && !nextRandomEventsThisYear.includes(prepared.id)) {
+                nextRandomEventsThisYear.push(prepared.id);
+              }
+              nextLastRandomEventId = prepared.id;
+              nextYouthRandomEventSeasonYear = state.year;
+            }
+          }
+        }
+
+        const shouldTriggerMixerYouthEvent = Boolean(
+          state.quarter === 2 &&
+          settlementEvent &&
+          hasYouthNegativeTrait(nextYouthSquadPlayers, 'mixer') &&
+          youthMixerPool.length > 0 &&
+          clampInt(nextMixerMediaEducateCount ?? 0, 0, 999999) < 3 &&
+          clampInt(nextMixerYouthEventSeasonYear ?? 0, 0, 99) !== clampInt(state.year ?? 0, 0, 99)
+        );
+
+        if (shouldTriggerMixerYouthEvent) {
+          const mixerAvailable = youthMixerPool
+            .filter(ev => {
+              if (!ev || !ev.id) return false;
+              if (nextRandomEventsThisYear.includes(ev.id)) return false;
+              if (ev.id === nextLastRandomEventId) return false;
+              const excluded = Array.isArray(ev.excludeYouthNames) ? ev.excludeYouthNames : [];
+              if (primaryYouthName && excluded.includes(primaryYouthName)) return false;
+              return true;
+            });
+          if (mixerAvailable.length > 0) {
+            const pickedIndex = Math.floor(Math.random() * mixerAvailable.length);
+            const picked = mixerAvailable[pickedIndex];
+            const prepared = cloneAndReplaceEventText(picked, state);
+            if (prepared) {
+              prepared.youthMixerEvent = true;
+              pickedEvents.push(prepared);
+              if (prepared.id && !nextRandomEventsThisYear.includes(prepared.id)) {
+                nextRandomEventsThisYear.push(prepared.id);
+              }
+              nextLastRandomEventId = prepared.id;
+              nextMixerYouthEventSeasonYear = state.year;
+            }
+          }
         }
 
         if (pickedEvents.length > 0) {
@@ -2008,8 +3372,27 @@ function gameReducer(state, action) {
                         const qualifiedNextSeason = seasonEndRanking <= 4;
                         nextUclQualifiedNextSeason = qualifiedNextSeason;
 
+                        const leagueId = state.currentTeam?.leagueId || 'epl';
+                        const relegationLine = leagueId === 'bundesliga' ? 17 : 18;
+                        const shouldRelegate = typeof seasonEndRanking === 'number' && seasonEndRanking >= relegationLine;
+                        if (shouldRelegate) {
+                          const applied = tryApplyYouthCalmProtection({
+                            stats: statsAfterMonth,
+                            specialMechanicState: nextSpecialState,
+                            youthSquadPlayers: nextYouthSquadPlayers,
+                            teamId: state.currentTeam?.id
+                          });
+                          if (applied.applied) {
+                            statsAfterMonth = applied.stats;
+                            nextSpecialState = applied.specialMechanicState;
+                          } else {
+                            forcedGameStateAfterMonth = 'relegation_resign';
+                            nextRelegationFinalRanking = seasonEndRanking;
+                          }
+                        }
+
                         if (qualifiedNextSeason) {
-                            statsAfterMonth.funds = Math.max(0, (statsAfterMonth.funds ?? 0) + 2);
+                            statsAfterMonth.funds = clampFunds((statsAfterMonth.funds ?? 0) + 2, state.currentTeam?.id);
                         }
 
                         const seasonSettlementEvent = buildSeasonSettlementEvent({
@@ -2045,8 +3428,27 @@ function gameReducer(state, action) {
                 const qualifiedNextSeason = seasonEndRanking <= 4;
                 nextUclQualifiedNextSeason = qualifiedNextSeason;
 
+                const leagueId = state.currentTeam?.leagueId || 'epl';
+                const relegationLine = leagueId === 'bundesliga' ? 17 : 18;
+                const shouldRelegate = typeof seasonEndRanking === 'number' && seasonEndRanking >= relegationLine;
+                if (shouldRelegate) {
+                  const applied = tryApplyYouthCalmProtection({
+                    stats: statsAfterMonth,
+                    specialMechanicState: nextSpecialState,
+                    youthSquadPlayers: nextYouthSquadPlayers,
+                    teamId: state.currentTeam?.id
+                  });
+                  if (applied.applied) {
+                    statsAfterMonth = applied.stats;
+                    nextSpecialState = applied.specialMechanicState;
+                  } else {
+                    forcedGameStateAfterMonth = 'relegation_resign';
+                    nextRelegationFinalRanking = seasonEndRanking;
+                  }
+                }
+
                 if (qualifiedNextSeason) {
-                    statsAfterMonth.funds = Math.max(0, (statsAfterMonth.funds ?? 0) + 2);
+                    statsAfterMonth.funds = clampFunds((statsAfterMonth.funds ?? 0) + 2, state.currentTeam?.id);
                 }
 
                 const seasonSettlementEvent = buildSeasonSettlementEvent({
@@ -2065,7 +3467,59 @@ function gameReducer(state, action) {
                     }
                     statsAfterMonth.points = 0;
                     statsAfterMonth.tactics = Math.max(0, Math.min(10, (statsAfterMonth.tactics ?? 0) - 2));
-                    statsAfterMonth.funds = Math.max(0, (statsAfterMonth.funds ?? 0) + 10);
+                    statsAfterMonth.funds = clampFunds((statsAfterMonth.funds ?? 0) + 10, state.currentTeam?.id);
+
+                    if (state.currentTeam?.id === 'ac_milan') {
+                      const all = ['milan_baresi', 'milan_nesta', 'milan_maldini'];
+                      const milanLegendIds = new Set(all);
+                      nextActiveBuffs = nextActiveBuffs.filter(b => !milanLegendIds.has(b));
+                      const picked = all[Math.floor(Math.random() * all.length)];
+                      nextActiveBuffs.push(picked);
+                      nextSpecialState = { ...(nextSpecialState || {}), milanLegendsUsedThisSeason: [picked] };
+                    }
+
+                    // Apply season rollover immediately so "continue coaching" starts a new season.
+                    nextMonth = 1;
+                    nextQuarter = 1;
+                    nextYear = (state.year ?? 1) + 1;
+                    nextCoffeeRefUsedThisQuarter = false;
+                    nextExplodeUsedThisQuarter = false;
+                    nextRandomEventsThisYear = [];
+                    nextLastRandomEventId = null;
+                    pointsThisQuarterAfterMonth = 0;
+
+                    // Youth academy should unlock at the start of season 3 for all teams.
+                    // Double-crown flow skips season settlement, so we must apply the unlock here.
+                    if (nextYear >= 3) {
+                      nextYouthRefreshUsedThisQuarter = false;
+                      nextAchievementsState = {
+                        ...nextAchievementsState,
+                        youthAcademyUnlocked: true,
+                        youthAcademyUnlockPending: false,
+                        youthRefreshUsedThisQuarter: false
+                      };
+
+                      if (!nextAchievementsState.youthAcademyPlayer) {
+                        const isBarca = state.currentTeam?.id === 'fc_barcelona';
+                        nextAchievementsState = {
+                          ...nextAchievementsState,
+                          youthAcademyPlayer: isBarca
+                            ? generateYouthPlayer({ techMin: 4, techMax: 8 })
+                            : generateYouthPlayer()
+                        };
+                      }
+                    }
+
+                    {
+                      const seasonYear = state.year;
+                      const league = Array.isArray(nextAchievementsState.leagueChampionYears) ? nextAchievementsState.leagueChampionYears : [];
+                      const ucl = Array.isArray(nextAchievementsState.uclChampionYears) ? nextAchievementsState.uclChampionYears : [];
+                      nextAchievementsState = {
+                        ...nextAchievementsState,
+                        leagueChampionYears: league.includes(seasonYear) ? league : [...league, seasonYear],
+                        uclChampionYears: ucl.includes(seasonYear) ? ucl : [...ucl, seasonYear]
+                      };
+                    }
 
                     nextLeagueOpponents = buildLeagueOpponents({
                       leagueId: state.currentTeam?.leagueId || 'epl',
@@ -2079,6 +3533,7 @@ function gameReducer(state, action) {
                       opponents: nextLeagueOpponents
                     });
                     nextLeagueRoundCursor = 0;
+                    nextLeagueMatchResults = {};
 
                     nextPendingSeasonReset = false;
                     nextUclQualifiedThisSeason = qualifiedNextSeason;
@@ -2101,7 +3556,14 @@ function gameReducer(state, action) {
                 }
             } else {
                 if (eventToTrigger) {
-                    settlementEvent = { ...settlementEvent, nextEvent: eventToTrigger };
+                    if (settlementEvent.nextEvent) {
+                      settlementEvent = {
+                        ...settlementEvent,
+                        nextEvent: appendEventToTail(settlementEvent.nextEvent, eventToTrigger)
+                      };
+                    } else {
+                      settlementEvent = { ...settlementEvent, nextEvent: eventToTrigger };
+                    }
                 }
                 eventToTrigger = settlementEvent;
             }
@@ -2113,20 +3575,70 @@ function gameReducer(state, action) {
             }
             eventToTrigger = forcedEvent;
         }
+        if (autoFlirtEvent) {
+          const follow = eventToTrigger || queuedEvent;
+          const firstOpt = Array.isArray(autoFlirtEvent.options) ? autoFlirtEvent.options[0] : null;
+          if (firstOpt && follow) {
+            autoFlirtEvent = {
+              ...autoFlirtEvent,
+              options: [{ ...firstOpt, nextEvent: follow }]
+            };
+          }
+          if (!eventToTrigger && queuedEvent) {
+            queuedEvent = null;
+          }
+          eventToTrigger = autoFlirtEvent;
+        }
         
         // Check Game Over conditions again after monthly updates
         let nextGameStateAfterMonth = state.gameState;
 
         enforceRainbowArmband(statsAfterMonth, nextActiveBuffs);
         enforceEmmaCamera(statsAfterMonth, nextActiveBuffs);
+        enforceYouthUnity10Floor(statsAfterMonth, nextYouthSquadPlayers);
+
+        {
+          const adjusted = applyKopFreeze({
+            stats: statsAfterMonth,
+            activeBuffs: nextActiveBuffs,
+            specialMechanicState: nextSpecialState
+          });
+          statsAfterMonth = adjusted.stats;
+          nextSpecialState = adjusted.specialMechanicState;
+        }
 
         if (statsAfterMonth.boardSupport <= 0 || statsAfterMonth.dressingRoom <= 0) {
             nextGameStateAfterMonth = 'gameover';
         }
 
+        if (nextGameStateAfterMonth === 'gameover' && !state.gameoverOverrideText) {
+          const applied = tryApplyYouthCalmProtection({
+            stats: statsAfterMonth,
+            specialMechanicState: nextSpecialState,
+            youthSquadPlayers: nextYouthSquadPlayers,
+            teamId: state.currentTeam?.id
+          });
+          if (applied.applied) {
+            statsAfterMonth = applied.stats;
+            nextSpecialState = applied.specialMechanicState;
+            nextGameStateAfterMonth = 'playing';
+          }
+        }
+
         if (forcedGameStateAfterMonth) {
             nextGameStateAfterMonth = forcedGameStateAfterMonth;
             pendingGameState = null;
+        }
+
+        const shouldResetOpponentTacticsBoostThisQuarter = nextQuarter !== state.quarter;
+
+        if (shouldResetOpponentTacticsBoostThisQuarter) {
+          const prevRemaining = typeof nextSpecialState.kopFreezeRemainingQuarters === 'number'
+            ? nextSpecialState.kopFreezeRemainingQuarters
+            : 0;
+          if (prevRemaining > 0) {
+            nextSpecialState.kopFreezeRemainingQuarters = Math.max(0, prevRemaining - 1);
+          }
         }
 
         let stateAfterMonth = {
@@ -2138,7 +3650,7 @@ function gameReducer(state, action) {
             decisionPoints: (nextYear === 1 && nextActiveBuffs.includes('dortmund_unlicensed')) ? 2 : 3,
             decisionCountThisMonth: 0, // Reset decision count for new month
             activeDecisionsTaken: [],
-            opponentTacticsBoostThisMonth: 0,
+            opponentTacticsBoostThisMonth: shouldResetOpponentTacticsBoostThisQuarter ? 0 : (state.opponentTacticsBoostThisMonth || 0),
             currentEvent: eventToTrigger,
             gameState: nextGameStateAfterMonth,
             tabloidCount: nextTabloidCount,
@@ -2152,8 +3664,14 @@ function gameReducer(state, action) {
             pendingGameState: pendingGameState,
             pendingSave: state.pendingSave ? state.pendingSave : (shouldAutoSave ? { type: 'auto' } : null),
             pendingSeasonReset: nextPendingSeasonReset,
+            relegationFinalRanking: nextRelegationFinalRanking,
+            youthRandomEventSeasonYear: nextYouthRandomEventSeasonYear,
+            mixerYouthEventSeasonYear: nextMixerYouthEventSeasonYear,
+            mixerMediaEducateCount: nextMixerMediaEducateCount,
             coffeeRefUsedThisQuarter: nextCoffeeRefUsedThisQuarter,
             explodeUsedThisQuarter: nextExplodeUsedThisQuarter,
+            youthSquadPlayers: nextYouthSquadPlayers,
+            youthRefreshUsedThisQuarter: nextYouthRefreshUsedThisQuarter,
             leagueOpponents: nextLeagueOpponents,
             leagueOpponentCursor: state.leagueOpponentCursor,
             leagueSchedule: nextLeagueSchedule,
@@ -2171,13 +3689,45 @@ function gameReducer(state, action) {
             uclQualifiedNextSeason: nextUclQualifiedNextSeason
         };
 
+        if (nextGameStateAfterMonth === 'gameover' && !state.gameoverOverrideText) {
+          const teamId = state.currentTeam?.id;
+
+          if (!state.artetaEasterEggTriggered && teamId === 'arsenal' && isArtetaName(state.playerName)) {
+            const firedBy = statsAfterMonth.dressingRoom <= 0 ? 'dressingRoom' : 'boardSupport';
+            stateAfterMonth = unlockAchievementInState({
+              ...stateAfterMonth,
+              gameState: 'playing',
+              currentEvent: buildArtetaExHusbandEvent({ firedBy }),
+              queuedEvent: null,
+              pendingGameState: null,
+              artetaEasterEggTriggered: true
+            }, 'arteta_ex_husband');
+          } else if (
+            !state.easterEggTriggered &&
+            isAlonsoName(state.playerName) &&
+            teamId &&
+            teamId !== 'man_utd' &&
+            teamId !== 'liverpool'
+          ) {
+            stateAfterMonth = {
+              ...stateAfterMonth,
+              gameState: 'playing',
+              currentEvent: buildGerrardLetterEvent(),
+              queuedEvent: null,
+              pendingGameState: 'gameover',
+              easterEggTriggered: true
+            };
+          }
+        }
+
         if (nextGameStateAfterMonth === 'gameover' && state.currentTeam?.id === 'man_utd' && isAlonsoName(state.playerName)) {
           stateAfterMonth = unlockAchievementInState(stateAfterMonth, 'alonso_manutd_fired');
         }
 
         return stateAfterMonth;
+    }
         
-    case 'RESOLVE_EVENT':
+    case 'RESOLVE_EVENT': {
         if (action.payload && action.payload.switchTeamId) {
             const nextTeam = teamsData.find(t => t.id === action.payload.switchTeamId);
             if (!nextTeam) return state;
@@ -2187,6 +3737,19 @@ function gameReducer(state, action) {
             if (nextTeam.id === 'chelsea') {
               switchedBuffs.push('chelsea_sack_pressure');
             }
+            if (nextTeam.id === 'liverpool') {
+              if (isKloppName(state.playerName)) {
+                switchedBuffs.push('kop_freeze_season');
+                switchedSpecialState = { ...switchedSpecialState, kopFreezeDurationQuarters: 4 };
+              } else {
+                switchedBuffs.push('kop_freeze_quarter');
+                switchedSpecialState = { ...switchedSpecialState, kopFreezeDurationQuarters: 1 };
+              }
+
+              if (isAlonsoName(state.playerName) && !switchedBuffs.includes('istanbul_kiss')) {
+                switchedBuffs.push('istanbul_kiss');
+              }
+            }
             if (nextTeam.id === 'dortmund') {
               switchedBuffs.push('dortmund_emma_camera');
               switchedBuffs.push('dortmund_unlicensed');
@@ -2195,6 +3758,20 @@ function gameReducer(state, action) {
               switchedBuffs.push('bayern_committee');
               switchedBuffs.push('bayern_history_proof');
               switchedSpecialState = { ...switchedSpecialState, bayernDressingRoomRevealed: false, bayernCommitteeRemoved: false };
+            }
+            if (nextTeam.id === 'fc_barcelona') {
+              switchedBuffs.push('barca_board_take');
+            }
+
+            // Deduplicate buffs (switch paths can stack grants)
+            {
+              const unique = [];
+              (Array.isArray(switchedBuffs) ? switchedBuffs : []).forEach(b => {
+                if (!b) return;
+                if (!unique.includes(b)) unique.push(b);
+              });
+              switchedBuffs.length = 0;
+              switchedBuffs.push(...unique);
             }
 
             const switchLeagueId = nextTeam?.leagueId || 'epl';
@@ -2237,6 +3814,17 @@ function gameReducer(state, action) {
 
             };
 
+            if (nextTeam.id === 'fc_barcelona') {
+              switched = {
+                ...switched,
+                youthAcademyUnlocked: true,
+                youthAcademyUnlockPending: false,
+                youthAcademyPlayer: generateYouthPlayer({ techMin: 4, techMax: 8 }),
+                youthSquadPlayers: [],
+                youthRefreshUsedThisQuarter: false
+              };
+            }
+
             if (state.currentEvent?.id === 'gerrard_letter' && action.payload.switchTeamId === 'liverpool' && isAlonsoName(state.playerName)) {
               switched = unlockAchievementInState(switched, 'alonso_letter_accept');
             }
@@ -2244,10 +3832,97 @@ function gameReducer(state, action) {
             return switched;
         }
 
+        let nextLeagueChampionYearsAfterResolve = Array.isArray(state.leagueChampionYears) ? state.leagueChampionYears.slice() : [];
+        let nextUclChampionYearsAfterResolve = Array.isArray(state.uclChampionYears) ? state.uclChampionYears.slice() : [];
+        let wonUclNow = false;
+        let nextPendingGameState = state.pendingGameState;
+        let nextMixerMediaEducateCount = state.mixerMediaEducateCount;
+        if (action.payload && action.payload.setPendingGameState) {
+          nextPendingGameState = action.payload.setPendingGameState;
+        }
+        const nextTabloidStalkingUnlocked = state.tabloidStalkingUnlocked;
+        const nextRelegationFinalRanking = state.relegationFinalRanking;
+        const nextSeason2TutorialShown = state.season2TutorialShown;
+        const nextInjuryTutorialShown = state.injuryTutorialShown;
+        const nextUclTutorialShown = state.uclTutorialShown;
+        let nextYouthTutorialShown = state.youthTutorialShown;
+
         const isResolvingSeasonSettlement = state.pendingSeasonReset && state.currentEvent && state.currentEvent.id === 'season_settlement';
+        const postSettlementYear = isResolvingSeasonSettlement
+          ? ((typeof state.currentEvent?.seasonYear === 'number') ? (state.currentEvent.seasonYear + 1) : (state.year + 1))
+          : state.year;
+
+        const youthLimitAfterResolve = getYouthSquadMax(state.currentTeam?.id);
+        let nextYouthSquadPlayersAfterResolve = Array.isArray(state.youthSquadPlayers)
+          ? state.youthSquadPlayers.map(normalizeYouthPlayer).filter(Boolean).slice(0, youthLimitAfterResolve)
+          : [];
+
+        let nextYouthAcademyPlayerAfterResolve = normalizeYouthPlayer(state.youthAcademyPlayer);
+        let nextYouthAcademyUnlockedAfterResolve = Boolean(state.youthAcademyUnlocked);
+        let nextYouthAcademyUnlockPendingAfterResolve = Boolean(state.youthAcademyUnlockPending);
+        let nextYouthRefreshUsedThisQuarterAfterResolve = Boolean(state.youthRefreshUsedThisQuarter);
+        let promotedYouthForAchievement = null;
 
         // Apply event option effects
         const eventEffects = { ...(action.payload.effects || {}) };
+        const eventDecisionRecord = action.payload?.decisionRecord;
+        let nextDecisionHistoryAfterEvent = Array.isArray(state.decisionHistory) ? state.decisionHistory.slice() : [];
+        if (eventDecisionRecord) {
+          nextDecisionHistoryAfterEvent.push(String(eventDecisionRecord));
+        }
+
+        if (eventEffects.youth_free_points) {
+          const pts = clampInt(eventEffects.youth_free_points ?? 0, -9999, 9999);
+          if (pts !== 0) {
+            const targetId = state.currentEvent?.youthTargetId;
+            const hasSquad = nextYouthSquadPlayersAfterResolve.length > 0;
+            const academy = nextYouthAcademyPlayerAfterResolve;
+            const academyId = academy?.id;
+
+            if (hasSquad) {
+              const idx = targetId
+                ? nextYouthSquadPlayersAfterResolve.findIndex(p => p && p.id === targetId)
+                : -1;
+              if (idx >= 0) {
+                nextYouthSquadPlayersAfterResolve = nextYouthSquadPlayersAfterResolve.map((p, i) => {
+                  if (i !== idx) return p;
+                  return { ...p, freePoints: clampInt((p.freePoints ?? 0) + pts, 0, 9999) };
+                });
+              } else if (academy && academyId && targetId && academyId === targetId) {
+                nextYouthAcademyPlayerAfterResolve = {
+                  ...academy,
+                  freePoints: clampInt((academy.freePoints ?? 0) + pts, 0, 9999)
+                };
+              } else {
+                nextYouthSquadPlayersAfterResolve = nextYouthSquadPlayersAfterResolve.map((p, i) => {
+                  if (i !== 0) return p;
+                  return { ...p, freePoints: clampInt((p.freePoints ?? 0) + pts, 0, 9999) };
+                });
+              }
+            } else if (academy) {
+              nextYouthAcademyPlayerAfterResolve = {
+                ...academy,
+                freePoints: clampInt((academy.freePoints ?? 0) + pts, 0, 9999)
+              };
+            }
+          }
+          delete eventEffects.youth_free_points;
+        }
+
+        if (state.currentEvent?.youthMixerEvent && action.payload?.id === 'media_educate') {
+          nextMixerMediaEducateCount = clampInt((state.mixerMediaEducateCount ?? 0) + 1, 0, 999999);
+        }
+
+        if (
+          isRandomEventId(state.currentEvent?.id, state.currentTeam?.id) &&
+          hasYouthPositiveTrait(state.youthSquadPlayers, 'stable') &&
+          typeof eventEffects.tactics === 'number' &&
+          eventEffects.tactics < 0
+        ) {
+          if (Math.random() < 0.5) {
+            delete eventEffects.tactics;
+          }
+        }
 
         if (state.currentEvent?.id === 'intro' && state.currentTeam?.id === 'bayern_munich' && isMusialaName(state.playerName)) {
           return unlockAchievementInState({
@@ -2276,6 +3951,31 @@ function gameReducer(state, action) {
         // Handle Buffs from events
         let eventActiveBuffs = [...state.activeBuffs];
         let nextSpecialMechanicStateAfterEvent = state.specialMechanicState;
+
+        if (
+          typeof state.currentEvent?.id === 'string' &&
+          ['union_weapon_1', 'union_weapon_2', 'union_weapon_3', 'union_weapon_4'].includes(state.currentEvent.id)
+        ) {
+          const prev = Array.isArray(nextSpecialMechanicStateAfterEvent?.unionWeaponEventsTriggered)
+            ? nextSpecialMechanicStateAfterEvent.unionWeaponEventsTriggered
+            : [];
+          if (!prev.includes(state.currentEvent.id)) {
+            nextSpecialMechanicStateAfterEvent = {
+              ...(nextSpecialMechanicStateAfterEvent || {}),
+              unionWeaponEventsTriggered: [...prev, state.currentEvent.id]
+            };
+          }
+        }
+        if (action.payload?.removeBuffs && Array.isArray(action.payload.removeBuffs)) {
+          const remove = new Set(action.payload.removeBuffs.filter(Boolean));
+          eventActiveBuffs = eventActiveBuffs.filter(b => !remove.has(b));
+        }
+
+        if (action.payload?.grantBuff) {
+          if (!eventActiveBuffs.includes(action.payload.grantBuff)) {
+            eventActiveBuffs.push(action.payload.grantBuff);
+          }
+        }
         if (eventEffects.special_rainbow_armband) {
             if (!eventActiveBuffs.includes('rainbow_armband')) {
                 eventActiveBuffs.push('rainbow_armband');
@@ -2329,7 +4029,7 @@ function gameReducer(state, action) {
                 } else if (targetKey === 'tactics') {
                     statsAfterEvent[targetKey] = Math.max(0, Math.min(10, statsAfterEvent[targetKey]));
                 } else if (targetKey === 'funds') {
-                    statsAfterEvent[targetKey] = Math.max(0, statsAfterEvent[targetKey]);
+                    statsAfterEvent[targetKey] = clampFunds(statsAfterEvent[targetKey], state.currentTeam?.id);
                 } else if (targetKey === 'injuryRisk') {
                     statsAfterEvent[targetKey] = Math.max(0, statsAfterEvent[targetKey]);
                 }
@@ -2338,20 +4038,6 @@ function gameReducer(state, action) {
 
         enforceRainbowArmband(statsAfterEvent, eventActiveBuffs);
         enforceEmmaCamera(statsAfterEvent, eventActiveBuffs);
-
-        if (state.currentTeam?.id === 'ac_milan' && state.currentEvent?.id === 'quarter_expectation_report') {
-          const used = Array.isArray(nextSpecialMechanicStateAfterEvent?.milanLegendsUsedThisSeason)
-            ? nextSpecialMechanicStateAfterEvent.milanLegendsUsedThisSeason.slice()
-            : [];
-          const all = ['milan_baresi', 'milan_nesta', 'milan_maldini'];
-          const remaining = all.filter(id => !used.includes(id));
-          if (remaining.length > 0) {
-            const picked = remaining[Math.floor(Math.random() * remaining.length)];
-            used.push(picked);
-            nextSpecialMechanicStateAfterEvent = { ...(nextSpecialMechanicStateAfterEvent || {}), milanLegendsUsedThisSeason: used };
-            if (!eventActiveBuffs.includes(picked)) eventActiveBuffs.push(picked);
-          }
-        }
 
         const syncedBuffsAfterEvent = syncDerivedBuffs({
           activeBuffs: eventActiveBuffs,
@@ -2390,25 +4076,43 @@ function gameReducer(state, action) {
             const milanLegendIds = new Set(['milan_baresi', 'milan_nesta', 'milan_maldini']);
             eventActiveBuffs = eventActiveBuffs.filter(b => !milanLegendIds.has(b));
 
-            const used = Array.isArray(nextSpecialMechanicStateAfterEvent?.milanLegendsUsedThisSeason)
-              ? nextSpecialMechanicStateAfterEvent.milanLegendsUsedThisSeason.slice()
-              : [];
             const all = ['milan_baresi', 'milan_nesta', 'milan_maldini'];
-            const remaining = all.filter(id => !used.includes(id));
-            if (remaining.length > 0) {
-              const picked = remaining[Math.floor(Math.random() * remaining.length)];
-              used.push(picked);
-              nextSpecialMechanicStateAfterEvent = { ...(nextSpecialMechanicStateAfterEvent || {}), milanLegendsUsedThisSeason: used };
-              eventActiveBuffs.push(picked);
-            }
+            const picked = all[Math.floor(Math.random() * all.length)];
+            nextSpecialMechanicStateAfterEvent = { ...(nextSpecialMechanicStateAfterEvent || {}), milanLegendsUsedThisSeason: [picked] };
+            eventActiveBuffs.push(picked);
           }
 
           finalStatsAfterEvent = { ...statsAfterEvent };
           finalStatsAfterEvent.points = 0;
-          finalStatsAfterEvent.tactics = Math.max(0, Math.min(10, (finalStatsAfterEvent.tactics ?? 0) - 2));
-          finalStatsAfterEvent.funds = Math.max(0, (finalStatsAfterEvent.funds ?? 0) + 10);
+          {
+            const youthSeasonProfile = getYouthSquadProfile(nextYouthSquadPlayersAfterResolve);
+            const drop = youthSeasonProfile.seasonTacticsDrop;
+            finalStatsAfterEvent.tactics = Math.max(0, Math.min(10, (finalStatsAfterEvent.tactics ?? 0) - drop));
+          }
+          if (state.currentTeam?.id === 'fc_barcelona') {
+            finalStatsAfterEvent.funds = clampFunds((finalStatsAfterEvent.funds ?? 0) - 10, state.currentTeam?.id);
+          } else {
+            finalStatsAfterEvent.funds = clampFunds((finalStatsAfterEvent.funds ?? 0) + 10, state.currentTeam?.id);
+          }
           finalEstimatedRanking = 1;
           finalPendingSeasonReset = false;
+          pointsThisQuarterAfterEvent = 0;
+
+          if (state.currentTeam?.id === 'dortmund') {
+            eventActiveBuffs = eventActiveBuffs.filter(b => b !== 'dortmund_unlicensed');
+          }
+
+          nextSpecialMechanicStateAfterEvent = {
+            ...(nextSpecialMechanicStateAfterEvent || {}),
+            canteenChangedThisSeason: { open: false, close: false },
+            roofChangedThisSeason: { open: false, close: false },
+            milanLegendsUsedThisSeason: (state.currentTeam?.id === 'ac_milan'
+              ? (Array.isArray(nextSpecialMechanicStateAfterEvent?.milanLegendsUsedThisSeason)
+                ? nextSpecialMechanicStateAfterEvent.milanLegendsUsedThisSeason
+                : [])
+              : []),
+            manCityAutoFlirtUsedTypesThisSeason: []
+          };
 
           resetCrossLeagueTacticsInflation = clampNumber(resetCrossLeagueTacticsInflation * 0.5, 0, 2);
 
@@ -2438,7 +4142,12 @@ function gameReducer(state, action) {
           resetUclOpponentQueue = [];
           resetUclCurrentOpponent = null;
 
-          resetUclQualifiedThisSeason = Boolean(state.uclQualifiedNextSeason);
+          const derivedQualifiedThisSeason = (typeof state.currentEvent?.ranking === 'number')
+            ? (state.currentEvent.ranking <= 4)
+            : null;
+          resetUclQualifiedThisSeason = (derivedQualifiedThisSeason === null)
+            ? Boolean(state.uclQualifiedNextSeason)
+            : Boolean(derivedQualifiedThisSeason);
           resetUclQualifiedNextSeason = false;
 
           finalBuffsAfterEvent = syncDerivedBuffs({
@@ -2457,8 +4166,92 @@ function gameReducer(state, action) {
         
         // Check Game Over conditions after event resolution
         let gameStateAfterEvent = state.gameState;
+
+        {
+          const youthProfileAfterEvent = getYouthSquadProfile(nextYouthSquadPlayersAfterResolve);
+          if (youthProfileAfterEvent.hasArmbandUnity10) {
+            finalStatsAfterEvent = { ...finalStatsAfterEvent, dressingRoom: Math.max(40, clampNumber(finalStatsAfterEvent.dressingRoom, 0, 100)) };
+          }
+        }
+
+        {
+          const adjusted = applyKopFreeze({
+            stats: finalStatsAfterEvent,
+            activeBuffs: finalBuffsAfterEvent,
+            specialMechanicState: nextSpecialMechanicStateAfterEvent
+          });
+          finalStatsAfterEvent = adjusted.stats;
+          nextSpecialMechanicStateAfterEvent = adjusted.specialMechanicState;
+        }
+
         if (finalStatsAfterEvent.boardSupport <= 0 || finalStatsAfterEvent.dressingRoom <= 0) {
             gameStateAfterEvent = 'gameover';
+        }
+
+        if (nextPendingGameState) {
+          gameStateAfterEvent = nextPendingGameState;
+          nextPendingGameState = null;
+        }
+
+        if (gameStateAfterEvent === 'gameover' && !state.gameoverOverrideText) {
+          const applied = tryApplyYouthCalmProtection({
+            stats: finalStatsAfterEvent,
+            specialMechanicState: nextSpecialMechanicStateAfterEvent,
+            youthSquadPlayers: nextYouthSquadPlayersAfterResolve,
+            teamId: state.currentTeam?.id
+          });
+          if (applied.applied) {
+            finalStatsAfterEvent = applied.stats;
+            nextSpecialMechanicStateAfterEvent = applied.specialMechanicState;
+            gameStateAfterEvent = 'playing';
+          }
+        }
+
+        if (gameStateAfterEvent === 'gameover' && !state.gameoverOverrideText) {
+          const teamId = state.currentTeam?.id;
+
+          if (!state.artetaEasterEggTriggered && teamId === 'arsenal' && isArtetaName(state.playerName)) {
+            const firedBy = finalStatsAfterEvent.dressingRoom <= 0 ? 'dressingRoom' : 'boardSupport';
+            return unlockAchievementInState({
+              ...state,
+              stats: finalStatsAfterEvent,
+              activeBuffs: finalBuffsAfterEvent,
+              tabloidCount: nextTabloidCountAfterEvent,
+              pointsThisQuarter: pointsThisQuarterAfterEvent,
+              pendingSeasonReset: finalPendingSeasonReset,
+              estimatedRanking: finalEstimatedRanking,
+              mixerMediaEducateCount: nextMixerMediaEducateCount,
+              gameState: 'playing',
+              currentEvent: buildArtetaExHusbandEvent({ firedBy }),
+              queuedEvent: null,
+              pendingGameState: null,
+              artetaEasterEggTriggered: true
+            }, 'arteta_ex_husband');
+          }
+
+          if (
+            !state.easterEggTriggered &&
+            isAlonsoName(state.playerName) &&
+            teamId &&
+            teamId !== 'man_utd' &&
+            teamId !== 'liverpool'
+          ) {
+            return {
+              ...state,
+              stats: finalStatsAfterEvent,
+              activeBuffs: finalBuffsAfterEvent,
+              tabloidCount: nextTabloidCountAfterEvent,
+              pointsThisQuarter: pointsThisQuarterAfterEvent,
+              pendingSeasonReset: finalPendingSeasonReset,
+              estimatedRanking: finalEstimatedRanking,
+              mixerMediaEducateCount: nextMixerMediaEducateCount,
+              gameState: 'playing',
+              currentEvent: buildGerrardLetterEvent(),
+              queuedEvent: null,
+              pendingGameState: 'gameover',
+              easterEggTriggered: true
+            };
+          }
         }
 
         let nextCurrentEvent = null;
@@ -2472,12 +4265,46 @@ function gameReducer(state, action) {
             nextQueuedEvent = null;
         }
 
+        // If this event reveals outcome text after choice, insert an outcome event before continuing.
+        // EventCard hides opt.effects when revealAfterChoice is true, so the outcome event is the place
+        // where both the outcome text and effect preview should be shown.
+        if (
+          state.currentEvent?.revealAfterChoice &&
+          !state.currentEvent?.isOutcome &&
+          typeof action.payload?.outcomeText === 'string' &&
+          action.payload.outcomeText.trim().length > 0
+        ) {
+          const follow = nextCurrentEvent || null;
+          nextCurrentEvent = _buildChoiceOutcomeEvent({
+            baseEvent: state.currentEvent,
+            option: action.payload,
+            effectsPreview: action.payload.effects || {},
+            nextEvent: follow
+          });
+          nextQueuedEvent = null;
+        }
+
         // If tabloid scandal triggers, it takes priority but does not lose the next event
         if (scandalEventAfterResolve) {
-            if (nextCurrentEvent) {
-                nextQueuedEvent = nextCurrentEvent;
+            let afterScandal = nextCurrentEvent;
+            let tail = nextQueuedEvent;
+
+            if (afterScandal && tail) {
+              if (afterScandal.options && afterScandal.options.length > 0) {
+                afterScandal = {
+                  ...afterScandal,
+                  options: afterScandal.options.map(opt => (opt && opt.nextEvent ? opt : { ...opt, nextEvent: tail }))
+                };
+              } else if (afterScandal.nextEvent) {
+                afterScandal = { ...afterScandal, nextEvent: afterScandal.nextEvent };
+              } else {
+                afterScandal = { ...afterScandal, nextEvent: tail };
+              }
+              tail = null;
             }
-            nextCurrentEvent = scandalEventAfterResolve;
+
+            nextCurrentEvent = buildTabloidBreakingEvent(afterScandal || tail || null);
+            nextQueuedEvent = null;
         }
 
         if (state.year >= 2 && (finalStatsAfterEvent.injuryRisk ?? 0) >= 5) {
@@ -2487,6 +4314,8 @@ function gameReducer(state, action) {
             nextCurrentEvent = buildInjuryCrisisEvent(after);
             nextQueuedEvent = remainingQueued;
         }
+
+        let afterUclNextEvent = null;
 
         if (action.payload && action.payload.uclAction === 'UCL_INTRO') {
             const candidates = Array.isArray(state.uclDrawCandidates) ? state.uclDrawCandidates : [];
@@ -2534,12 +4363,15 @@ function gameReducer(state, action) {
         }
 
         if (action.payload && action.payload.uclAction === 'UCL_MATCH') {
-            const afterUclNextEvent = nextCurrentEvent;
+            nextYouthSquadPlayersAfterResolve = applyYouthMatchesToSquad(nextYouthSquadPlayersAfterResolve, 1, { year: state.year, quarter: state.quarter, ucl: true });
+            afterUclNextEvent = nextCurrentEvent;
             const stage = state.uclStage;
             const opp = state.uclCurrentOpponent;
             const playerTeamName = state.currentTeam?.name || '你的俱乐部';
             const oppTeamName = opp?.name || '对手俱乐部';
-            let playerT = clampNumber(finalStatsAfterEvent.tactics, 0, 10);
+            const bestStarterTech = getBestYouthStarterTech(nextYouthSquadPlayersAfterResolve, { year: state.year, quarter: state.quarter, ucl: true });
+            const playerTacticsDelta = computeYouthTechTacticsDelta(bestStarterTech, finalStatsAfterEvent.tactics);
+            let playerT = clampNumber((finalStatsAfterEvent.tactics ?? 0) + playerTacticsDelta, 0, 10);
             if (
               state.currentTeam?.id === 'bayern_munich' &&
               Array.isArray(state.activeBuffs) &&
@@ -2553,11 +4385,10 @@ function gameReducer(state, action) {
             const oppT = clampNumber(opp?.tactics, 0, 10);
 
             finalStatsAfterEvent = { ...finalStatsAfterEvent };
-            finalStatsAfterEvent.funds = Math.max(0, (finalStatsAfterEvent.funds ?? 0) + 5);
+            finalStatsAfterEvent.funds = clampFunds((finalStatsAfterEvent.funds ?? 0) + 5, state.currentTeam?.id);
 
             let won = false;
             let detail = '';
-            let wonUclNow = false;
 
             if (playerT > oppT) {
                 won = true;
@@ -2601,7 +4432,7 @@ function gameReducer(state, action) {
                 resetUclCurrentOpponent = null;
 
                 if (stage === 'final') {
-                  finalStatsAfterEvent.funds = Math.max(0, (finalStatsAfterEvent.funds ?? 0) + 10);
+                  finalStatsAfterEvent.funds = clampFunds((finalStatsAfterEvent.funds ?? 0) + 10, state.currentTeam?.id);
                   nextCurrentEvent = buildUclChampionEvent();
                   resetUclStage = 'won';
                   wonUclNow = true;
@@ -2637,12 +4468,16 @@ function gameReducer(state, action) {
                     nextCurrentEvent.options = nextCurrentEvent.options.map(opt => ({ ...opt, nextEvent: afterUclNextEvent }));
                   }
                 }
+              }
             }
 
             if (wonUclNow) {
               const uclWonSeasonYear = (afterUclNextEvent && typeof afterUclNextEvent.seasonYear === 'number')
                 ? afterUclNextEvent.seasonYear
                 : (state.uclSeasonYear ?? state.year);
+              if (!nextUclChampionYearsAfterResolve.includes(uclWonSeasonYear)) {
+                nextUclChampionYearsAfterResolve = [...nextUclChampionYearsAfterResolve, uclWonSeasonYear];
+              }
               const base = {
                 ...state,
                 stats: finalStatsAfterEvent,
@@ -2656,10 +4491,19 @@ function gameReducer(state, action) {
                 estimatedRanking: finalEstimatedRanking,
                 pendingSeasonReset: finalPendingSeasonReset,
                 tabloidStalkingUnlocked: state.tabloidStalkingUnlocked,
+                leagueChampionYears: nextLeagueChampionYearsAfterResolve,
+                uclChampionYears: nextUclChampionYearsAfterResolve,
+                youthAcademyUnlocked: nextYouthAcademyUnlockedAfterResolve,
+                youthAcademyUnlockPending: nextYouthAcademyUnlockPendingAfterResolve,
+                youthAcademyPlayer: nextYouthAcademyPlayerAfterResolve,
+                youthSquadPlayers: nextYouthSquadPlayersAfterResolve,
+                youthRefreshUsedThisQuarter: nextYouthRefreshUsedThisQuarterAfterResolve,
                 leagueOpponents: resetLeagueOpponents,
                 leagueOpponentCursor: resetLeagueOpponentCursor,
                 leagueSchedule: resetLeagueSchedule,
                 leagueRoundCursor: resetLeagueRoundCursor,
+                leagueMatchResults: resetLeagueMatchResults,
+                crossLeagueTacticsInflation: resetCrossLeagueTacticsInflation,
                 uclActive: resetUclActive,
                 uclAlive: resetUclAlive,
                 uclStage: resetUclStage,
@@ -2678,195 +4522,194 @@ function gameReducer(state, action) {
               }
               return next;
             }
-        }
 
-        const shouldShowOutcomeModal = Boolean(
-          state.currentEvent &&
-          state.currentEvent.revealAfterChoice &&
-          !state.currentEvent.isOutcome &&
-          action.payload &&
-          action.payload.outcomeText
-        );
+// ...
 
-        if (shouldShowOutcomeModal) {
-          const afterChoiceNext = nextCurrentEvent;
-          nextCurrentEvent = buildChoiceOutcomeEvent({
-            baseEvent: state.currentEvent,
-            option: action.payload,
-            effectsPreview: eventEffects,
-            nextEvent: afterChoiceNext
-          });
-        }
-
-        let nextTabloidStalkingUnlocked = state.tabloidStalkingUnlocked;
-        if (state.currentEvent && state.currentEvent.id === 'tabloid_stalking_intro') {
-            nextTabloidStalkingUnlocked = true;
-        }
-
-        let nextInjuryTutorialShown = state.injuryTutorialShown;
-        let nextUclTutorialShown = state.uclTutorialShown;
-        let nextSeason2TutorialShown = state.season2TutorialShown;
-
-        let nextRelegationFinalRanking = state.relegationFinalRanking ?? null;
-
-        let nextPendingGameState = state.pendingGameState;
-        if (action.payload && action.payload.setPendingGameState) {
-            nextPendingGameState = action.payload.setPendingGameState;
-        }
-
-        const isDoubleCrown = Boolean(
-          isResolvingSeasonSettlement &&
-          state.currentEvent &&
-          state.currentEvent.champion &&
-          typeof state.currentEvent.seasonYear === 'number' &&
-          state.uclWonSeasonYear === state.currentEvent.seasonYear
-        );
-
-        if (isDoubleCrown) {
-          nextPendingGameState = 'double_crown';
-          nextCurrentEvent = null;
-          nextQueuedEvent = null;
-        }
-
-        const shouldTriggerRelegationResign = Boolean(
-          isResolvingSeasonSettlement &&
-          !nextPendingGameState &&
-          gameStateAfterEvent !== 'gameover' &&
-          typeof state.currentEvent?.ranking === 'number'
-        );
-
-        if (shouldTriggerRelegationResign) {
-          const leagueId = state.currentTeam?.leagueId || 'epl';
-          const leagueSize = getLeagueRoster(leagueId)?.length || 20;
-          const threshold = leagueSize === 18 ? 17 : 18;
-          const finalRank = state.currentEvent.ranking;
-          if (finalRank >= threshold) {
-            nextPendingGameState = 'relegation_resign';
-            nextRelegationFinalRanking = finalRank;
-            nextCurrentEvent = null;
-            nextQueuedEvent = null;
-          } else {
-            nextRelegationFinalRanking = null;
-          }
-        }
-
-        // After season 1 ends (state.year has advanced to 2), inject a fixed intro event before season 2 begins.
-        // Only do this when the game is actually continuing to season 2 (no pending victory/gameover transition).
-        if (isResolvingSeasonSettlement && state.year === 2 && !nextPendingGameState) {
-            let chainHead = nextCurrentEvent;
-            let chainTail = null;
-
-            const appendToChain = (ev) => {
-                if (!ev) return;
-                if (!chainHead) {
-                    chainHead = ev;
-                    chainTail = ev;
-                } else {
-                    const tail = chainTail || chainHead;
-                    if (tail.options && tail.options.length > 0) {
-                        tail.options = tail.options.map(opt => (opt.nextEvent ? opt : { ...opt, nextEvent: ev }));
-                    } else {
-                        tail.nextEvent = ev;
-                    }
-                    chainTail = ev;
-                }
+            let nextStateBase = {
+              ...state,
+              stats: finalStatsAfterEvent,
+              currentEvent: nextCurrentEvent,
+              queuedEvent: nextQueuedEvent,
+              gameState: gameStateAfterEvent,
+              activeBuffs: finalBuffsAfterEvent,
+              specialMechanicState: nextSpecialMechanicStateAfterEvent,
+              tabloidCount: nextTabloidCountAfterEvent,
+              pointsThisQuarter: pointsThisQuarterAfterEvent,
+              pendingGameState: nextPendingGameState,
+              pendingSeasonReset: finalPendingSeasonReset,
+              estimatedRanking: finalEstimatedRanking,
+              mixerMediaEducateCount: nextMixerMediaEducateCount,
+              tabloidStalkingUnlocked: nextTabloidStalkingUnlocked,
+              relegationFinalRanking: nextRelegationFinalRanking,
+              decisionHistory: nextDecisionHistoryAfterEvent,
+              youthAcademyUnlocked: nextYouthAcademyUnlockedAfterResolve,
+              youthAcademyUnlockPending: nextYouthAcademyUnlockPendingAfterResolve,
+              youthAcademyPlayer: nextYouthAcademyPlayerAfterResolve,
+              youthSquadPlayers: nextYouthSquadPlayersAfterResolve,
+              youthRefreshUsedThisQuarter: nextYouthRefreshUsedThisQuarterAfterResolve,
+              leagueOpponents: resetLeagueOpponents,
+              leagueOpponentCursor: resetLeagueOpponentCursor,
+              leagueSchedule: resetLeagueSchedule,
+              leagueRoundCursor: resetLeagueRoundCursor,
+              leagueMatchResults: resetLeagueMatchResults,
+              crossLeagueTacticsInflation: resetCrossLeagueTacticsInflation,
+              uclActive: resetUclActive,
+              uclAlive: resetUclAlive,
+              uclStage: resetUclStage,
+              uclSeasonYear: resetUclSeasonYear,
+              uclTeams16: resetUclTeams16,
+              uclDrawCandidates: resetUclDrawCandidates,
+              uclOpponentQueue: resetUclOpponentQueue,
+              uclCurrentOpponent: resetUclCurrentOpponent,
+              uclQualifiedThisSeason: resetUclQualifiedThisSeason,
+              uclQualifiedNextSeason: resetUclQualifiedNextSeason,
+              season2TutorialShown: nextSeason2TutorialShown,
+              injuryTutorialShown: nextInjuryTutorialShown,
+              uclTutorialShown: nextUclTutorialShown,
+              youthTutorialShown: nextYouthTutorialShown
             };
 
-            if (!state.season2TutorialShown) {
-                appendToChain(buildSeason2StarterTutorialEvent());
-                nextSeason2TutorialShown = true;
-            }
-
-            if (!state.injuryTutorialShown) {
-                appendToChain(buildInjuryRiskTutorialEvent());
-                nextInjuryTutorialShown = true;
-            }
-
-            if (!state.uclTutorialShown && Boolean(state.uclQualifiedNextSeason)) {
-                appendToChain(buildUclTutorialEvent());
-                nextUclTutorialShown = true;
-            }
-
-            if (!state.tabloidStalkingUnlocked) {
-                appendToChain(buildTabloidStalkingIntroEvent());
-            }
-
-            if (chainHead) {
-                if (nextCurrentEvent && nextCurrentEvent !== chainHead) {
-                    nextQueuedEvent = nextCurrentEvent;
+            if (isResolvingSeasonSettlement) {
+              const shouldGrantSeasonFreePoint = state.youthSeasonFreePointsGrantedYear !== postSettlementYear;
+              if (state.currentEvent?.champion && typeof state.currentEvent?.seasonYear === 'number') {
+                const y = state.currentEvent.seasonYear;
+                if (!nextLeagueChampionYearsAfterResolve.includes(y)) {
+                  nextLeagueChampionYearsAfterResolve = [...nextLeagueChampionYearsAfterResolve, y];
                 }
-                nextCurrentEvent = chainHead;
+              }
+
+              const shouldUnlockNow = Boolean(
+                !nextYouthAcademyUnlockedAfterResolve &&
+                postSettlementYear >= 3 &&
+                (nextYouthAcademyUnlockPendingAfterResolve || postSettlementYear === 3)
+              );
+
+              if (shouldUnlockNow) {
+                nextYouthAcademyUnlockedAfterResolve = true;
+                nextYouthAcademyUnlockPendingAfterResolve = false;
+              }
+
+              if (nextYouthAcademyUnlockedAfterResolve) {
+                nextYouthRefreshUsedThisQuarterAfterResolve = false;
+
+                if (nextYouthAcademyPlayerAfterResolve) {
+                  nextYouthAcademyPlayerAfterResolve = {
+                    ...nextYouthAcademyPlayerAfterResolve,
+                    age: clampInt((nextYouthAcademyPlayerAfterResolve.age ?? 17) + 1, 0, 99),
+                    freePoints: clampInt((nextYouthAcademyPlayerAfterResolve.freePoints ?? 0), 0, 9999)
+                  };
+
+                  if ((nextYouthAcademyPlayerAfterResolve.specialTraitId || '') === 'eco_guardian') {
+                    nextYouthAcademyPlayerAfterResolve = {
+                      ...nextYouthAcademyPlayerAfterResolve,
+                      ecoMissingSeasonYear: clampInt(postSettlementYear, 0, 99),
+                      ecoMissingQuarter: clampInt(1 + Math.floor(Math.random() * 3), 0, 3)
+                    };
+                  }
+                }
+
+                nextYouthSquadPlayersAfterResolve = nextYouthSquadPlayersAfterResolve.map(p => {
+                  let next = {
+                    ...p,
+                    age: clampInt((p.age ?? 17) + 1, 0, 99),
+                    freePoints: clampInt((p.freePoints ?? 0) + (shouldGrantSeasonFreePoint ? 1 : 0), 0, 9999)
+                  };
+
+                  if ((next.positiveTraitId || '') === 'loyal' && next.hasArmband) {
+                    next = { ...next, diligence: clampInt((next.diligence ?? 0) + 2, 0, 10) };
+                  }
+
+                  if ((next.specialTraitId || '') === 'eco_guardian') {
+                    next = {
+                      ...next,
+                      ecoMissingSeasonYear: clampInt(postSettlementYear, 0, 99),
+                      ecoMissingQuarter: clampInt(1 + Math.floor(Math.random() * 3), 0, 3)
+                    };
+                  }
+
+                  return next;
+                });
+
+                if (nextYouthAcademyPlayerAfterResolve && (nextYouthAcademyPlayerAfterResolve.age ?? 0) > 21) {
+                  const limit = getYouthSquadAddLimit(state.currentTeam?.id, finalStatsAfterEvent?.funds);
+                  if (nextYouthSquadPlayersAfterResolve.length < limit) {
+                    promotedYouthForAchievement = nextYouthAcademyPlayerAfterResolve;
+                    nextYouthSquadPlayersAfterResolve = [...nextYouthSquadPlayersAfterResolve, { ...nextYouthAcademyPlayerAfterResolve, role: 'bench', hasArmband: false }].slice(0, getYouthSquadMax(state.currentTeam?.id));
+                    nextYouthAcademyPlayerAfterResolve = null;
+                  }
+                }
+
+                if (!nextYouthAcademyPlayerAfterResolve) {
+                  const isBarca = state.currentTeam?.id === 'fc_barcelona';
+                  if (!isBarca) {
+                    nextYouthAcademyPlayerAfterResolve = generateYouthPlayer();
+                  }
+                }
+              }
+
+              nextStateBase = {
+                ...nextStateBase,
+                month: 1,
+                quarter: 1,
+                year: postSettlementYear,
+                randomEventsThisYear: [],
+                lastRandomEventId: null,
+                coffeeRefUsedThisQuarter: false,
+                explodeUsedThisQuarter: false,
+                opponentTacticsBoostThisMonth: 0,
+                leagueChampionYears: nextLeagueChampionYearsAfterResolve,
+                uclChampionYears: nextUclChampionYearsAfterResolve,
+                youthAcademyUnlocked: nextYouthAcademyUnlockedAfterResolve,
+                youthAcademyUnlockPending: nextYouthAcademyUnlockPendingAfterResolve,
+                youthAcademyPlayer: nextYouthAcademyPlayerAfterResolve,
+                youthSquadPlayers: nextYouthSquadPlayersAfterResolve,
+                youthRefreshUsedThisQuarter: nextYouthRefreshUsedThisQuarterAfterResolve,
+                youthSeasonFreePointsGrantedYear: shouldGrantSeasonFreePoint
+                  ? postSettlementYear
+                  : state.youthSeasonFreePointsGrantedYear
+              };
+
+              if (shouldUnlockNow && !nextYouthTutorialShown) {
+                let follow = nextStateBase.currentEvent;
+                let queued = nextStateBase.queuedEvent;
+                if (!follow && queued) {
+                  follow = queued;
+                  queued = null;
+                }
+                nextStateBase = {
+                  ...nextStateBase,
+                  currentEvent: _buildYouthAcademyTutorialEvent(follow),
+                  queuedEvent: queued,
+                  youthTutorialShown: true
+                };
+                nextYouthTutorialShown = true;
+              }
+
+              if (promotedYouthForAchievement) {
+                nextStateBase = applyYouthPromotionAchievements(nextStateBase, promotedYouthForAchievement);
+              }
+
+              if (postSettlementYear >= 6) {
+                if (state.currentTeam?.id === 'real_madrid') nextStateBase = unlockAchievementInState(nextStateBase, 'rm_5_years');
+                if (state.currentTeam?.id === 'ac_milan') nextStateBase = unlockAchievementInState(nextStateBase, 'ac_milan_5_years');
+                if (state.currentTeam?.id === 'fc_barcelona') nextStateBase = unlockAchievementInState(nextStateBase, 'barca_5_years');
+                if (state.currentTeam?.id === 'dortmund') nextStateBase = unlockAchievementInState(nextStateBase, 'dortmund_5_years');
+                if (state.currentTeam?.id === 'chelsea') nextStateBase = unlockAchievementInState(nextStateBase, 'chelsea_5_years');
+                if (state.currentTeam?.id === 'liverpool') nextStateBase = unlockAchievementInState(nextStateBase, 'liverpool_5_years');
+                if (state.currentTeam?.id === 'arsenal') nextStateBase = unlockAchievementInState(nextStateBase, 'arsenal_5_years');
+                if (state.currentTeam?.id === 'man_utd') nextStateBase = unlockAchievementInState(nextStateBase, 'manutd_5_years');
+                if (state.currentTeam?.id === 'bayern_munich') nextStateBase = unlockAchievementInState(nextStateBase, 'bayern_5_years');
+                if (state.currentTeam?.id === 'man_city') nextStateBase = unlockAchievementInState(nextStateBase, 'man_city_5_years');
+              }
+
+              if (
+                postSettlementYear === 2 &&
+                state.currentEvent?.champion &&
+                state.currentTeam?.id === 'man_utd'
+              ) {
+                nextStateBase = unlockAchievementInState(nextStateBase, 'manutd_year1_champion');
+              }
             }
-        }
-
-        if (
-          isResolvingSeasonSettlement &&
-          state.currentTeam?.id === 'bayern_munich' &&
-          state.year >= 6 &&
-          !nextPendingGameState &&
-          !nextSpecialMechanicStateAfterEvent?.bayernCommitteeRemoved
-        ) {
-          const after = nextCurrentEvent || nextQueuedEvent || null;
-          const remainingQueued = nextCurrentEvent ? nextQueuedEvent : null;
-          nextCurrentEvent = {
-            id: 'bayern_committee_trust',
-            title: '通知',
-            description: '您已赢得球员们的信任。',
-            options: [{ text: '确定', effects: { special_bayern_remove_committee: true }, nextEvent: after }]
-          };
-          nextQueuedEvent = remainingQueued;
-        }
-
-        if (!nextCurrentEvent && nextPendingGameState) {
-            gameStateAfterEvent = nextPendingGameState;
-            nextPendingGameState = null;
-        }
-
-        if (gameStateAfterEvent === 'start') {
-          return {
-            ...initialState,
-            gameState: 'start',
-            achievementsUnlocked: state.achievementsUnlocked || {},
-            achievementToastQueue: state.achievementToastQueue || [],
-            tabloidStalkingUnlocked: state.tabloidStalkingUnlocked
-          };
-        }
-
-        let nextStateBase = {
-            ...state,
-            stats: finalStatsAfterEvent,
-            currentEvent: nextCurrentEvent,
-            queuedEvent: nextQueuedEvent,
-            gameState: gameStateAfterEvent,
-            activeBuffs: finalBuffsAfterEvent,
-            tabloidCount: nextTabloidCountAfterEvent,
-            pointsThisQuarter: pointsThisQuarterAfterEvent,
-            pendingGameState: nextPendingGameState,
-            estimatedRanking: finalEstimatedRanking,
-            pendingSeasonReset: finalPendingSeasonReset,
-            tabloidStalkingUnlocked: nextTabloidStalkingUnlocked,
-            specialMechanicState: nextSpecialMechanicStateAfterEvent,
-            relegationFinalRanking: nextRelegationFinalRanking,
-            leagueOpponents: resetLeagueOpponents,
-            leagueOpponentCursor: resetLeagueOpponentCursor,
-            leagueSchedule: resetLeagueSchedule,
-            leagueRoundCursor: resetLeagueRoundCursor,
-            leagueMatchResults: resetLeagueMatchResults,
-            crossLeagueTacticsInflation: resetCrossLeagueTacticsInflation,
-            uclActive: resetUclActive,
-            uclAlive: resetUclAlive,
-            uclStage: resetUclStage,
-            uclSeasonYear: resetUclSeasonYear,
-            uclTeams16: resetUclTeams16,
-            uclDrawCandidates: resetUclDrawCandidates,
-            uclOpponentQueue: resetUclOpponentQueue,
-            uclCurrentOpponent: resetUclCurrentOpponent,
-            uclQualifiedThisSeason: resetUclQualifiedThisSeason,
-            uclQualifiedNextSeason: resetUclQualifiedNextSeason,
-            season2TutorialShown: nextSeason2TutorialShown,
-            injuryTutorialShown: nextInjuryTutorialShown,
-            uclTutorialShown: nextUclTutorialShown
-        };
 
         if (state.currentEvent?.id === 'gerrard_letter' && action.payload?.setPendingGameState === 'gameover' && isAlonsoName(state.playerName)) {
           nextStateBase = unlockAchievementInState(nextStateBase, 'alonso_letter_reject');
@@ -2881,10 +4724,17 @@ function gameReducer(state, action) {
           if (state.currentTeam?.id === 'dortmund' && isKloppName(state.playerName)) {
             nextStateBase = unlockAchievementInState(nextStateBase, 'klopp_dortmund_double_crown');
           }
+          if (state.currentTeam?.id === 'man_city' && isGuardiolaName(state.playerName)) {
+            nextStateBase = unlockAchievementInState(nextStateBase, 'guardiola_man_city_double_crown');
+          }
         }
 
         if (nextStateBase.gameState === 'relegation_resign') {
           nextStateBase = unlockAchievementInState(nextStateBase, 'relegation_resign');
+        }
+
+        if (!state.activeBuffs.includes('union_wood_iron_stun') && Array.isArray(nextStateBase.activeBuffs) && nextStateBase.activeBuffs.includes('union_wood_iron_stun')) {
+          nextStateBase = unlockAchievementInState(nextStateBase, 'three_sticks');
         }
 
         if (state.currentTeam?.id === 'ac_milan' && isKakaName(state.playerName) && Array.isArray(nextStateBase.activeBuffs) && nextStateBase.activeBuffs.includes('milan_nesta')) {
@@ -2892,6 +4742,7 @@ function gameReducer(state, action) {
         }
 
         return nextStateBase;
+    }
 
     default:
       return state;
@@ -2910,12 +4761,30 @@ export function GameProvider({ children }) {
         localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(payload));
       } else if (state.pendingSave.type === 'manual') {
         const slot = state.pendingSave.slot;
-        if (slot === 1 || slot === 2 || slot === 3) {
+        if (slot >= 1 && slot <= 8) {
           const payload = buildSavePayload(state, 'manual', slot);
-          localStorage.setItem(`${MANUAL_SAVE_KEY_PREFIX}${slot}`, JSON.stringify(payload));
+
+          try {
+            const raw = localStorage.getItem(MANUAL_SLOTS_KEY);
+            const parsed = raw ? JSON.parse(raw) : null;
+            const prevSlots = Array.isArray(parsed?.slots) ? parsed.slots : [];
+            const nextSlots = Array(8).fill(null);
+            for (let i = 0; i < 8; i++) {
+              const v = prevSlots[i];
+              nextSlots[i] = (v && v.state) ? v : null;
+            }
+            nextSlots[slot - 1] = payload;
+            localStorage.setItem(MANUAL_SLOTS_KEY, JSON.stringify({ slots: nextSlots }));
+          } catch {
+            // ignore
+          }
+
+          if (slot === 1 || slot === 2 || slot === 3) {
+            localStorage.setItem(`${MANUAL_SAVE_KEY_PREFIX}${slot}`, JSON.stringify(payload));
+          }
         }
       }
-    } catch (e) {
+    } catch {
       // ignore
     } finally {
       dispatch({ type: 'CLEAR_PENDING_SAVE' });
@@ -2940,7 +4809,7 @@ export function GameProvider({ children }) {
       });
 
       localStorage.setItem(GLOBAL_ACHIEVEMENTS_KEY, JSON.stringify(next));
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, [state.achievementsUnlocked]);
@@ -2950,8 +4819,4 @@ export function GameProvider({ children }) {
       {children}
     </GameContext.Provider>
   );
-}
-
-export function useGame() {
-  return useContext(GameContext);
 }
