@@ -74,7 +74,7 @@ const buffDefinitions = {
   },
   'special_one': {
     name: 'Special One',
-    description: '你可以无视话语权的限制动用球队资金。',
+    description: '你可以无视话语权动用球队资金。',
     type: 'buff',
     theme: 'blue',
     icon: '🕶️'

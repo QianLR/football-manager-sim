@@ -1853,6 +1853,8 @@ function gameReducer(state, action) {
 
        if (team && team.id === 'chelsea' && isMourinhoName(action.payload.playerName)) {
          nextStartState = unlockAchievementInState(nextStartState, 'mourinho_chelsea');
+         if (!Array.isArray(nextStartState.activeBuffs)) nextStartState.activeBuffs = [];
+         if (!nextStartState.activeBuffs.includes('special_one')) nextStartState.activeBuffs.push('special_one');
        }
 
        if (team && team.id === 'fc_barcelona' && isXaviName(action.payload.playerName)) {
@@ -2126,8 +2128,10 @@ function gameReducer(state, action) {
         }
 
         // Check authority requirement for using funds
+        const ignoreFundsAuthority = Boolean(state.activeBuffs?.includes('special_one'));
         if (
           effectiveEffects?.funds < 0 &&
+          !ignoreFundsAuthority &&
           state.stats.authority < 70 &&
           !(state.currentTeam?.id === 'bayern_munich' && decisionId === 'goat_head_sign')
         ) {
@@ -4639,11 +4643,11 @@ function gameReducer(state, action) {
                   }
                 }
 
-                if (!nextYouthAcademyPlayerAfterResolve) {
-                  const isBarca = state.currentTeam?.id === 'fc_barcelona';
-                  if (!isBarca) {
-                    nextYouthAcademyPlayerAfterResolve = generateYouthPlayer();
-                  }
+                const isBarca = state.currentTeam?.id === 'fc_barcelona';
+                if (isBarca) {
+                  nextYouthAcademyPlayerAfterResolve = generateYouthPlayer({ techMin: 4, techMax: 8 });
+                } else if (!nextYouthAcademyPlayerAfterResolve) {
+                  nextYouthAcademyPlayerAfterResolve = generateYouthPlayer();
                 }
               }
 

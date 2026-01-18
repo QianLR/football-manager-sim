@@ -207,85 +207,85 @@ export const ACHIEVEMENTS = [
     id: 'youth_muller_bayern',
     title: '小将穆勒',
     hint: '那是2008年普通的一天。',
-    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！）'
   },
   {
     id: 'youth_gerrard_liverpool',
     title: '最好的队长',
     hint: '你见他伤痕累累往前走去，而他也从未轻言放弃。',
-    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！）'
   },
   {
     id: 'youth_maldini_milan',
     title: '年轻的接班人',
     hint: '要想在米兰城立住脚跟，你的年龄最好要达到一周岁。',
-    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！）'
   },
   {
     id: 'youth_jota_liverpool',
     title: 'Forever 20',
     hint: '我们曾无数次祈祷过时间倒流。',
-    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！）'
   },
   {
     id: 'youth_ferguson_manutd',
     title: '倒反天罡！',
     hint: '我只能祝你一切好运…',
-    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！）'
   },
   {
     id: 'youth_beckham_manutd',
     title: '那个全英格兰最帅的人',
     hint: '指的不仅是任意球。',
-    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！）'
   },
   {
     id: 'youth_terry_chelsea',
     title: '从一而终',
     hint: '回来救救我们的后防线吧，队长…',
-    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！）'
   },
   {
     id: 'youth_reus_dortmund',
     title: '花有重开日…',
     hint: '人无再少年。',
-    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！）'
   },
   {
     id: 'youth_wilshere_arsenal',
     title: '欢迎小威胁！',
     hint: '还有多少人记得你的名字？',
-    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！）'
   },
   {
     id: 'youth_mixer_deserved',
     title: '实至名归',
     hint: '实话实说吧，你是不是故意的？',
-    clue: '用特定的名字命名一个带“串子”负面特质的青训，并把他并入队。'
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！）'
   },
   {
     id: 'youth_raul_madridista',
     title: '马德里主义者',
     hint: '至于我，我是马德里主义者。',
-    clue: '用“劳尔”的名字命名皇家马德里的青训并入队。'
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！）'
   },
   {
     id: 'youth_inheritance',
     title: '传承',
     hint: '踢得好我来开车，踢不好你在车后跟着。',
-    clue: '用和主教练一样的名字命名青训并入队。'
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！）'
   },
   {
     id: 'youth_iniesta_croquette',
     title: '油炸丸子',
     hint: '你也想重建梦三神话吗？',
-    clue: '用“伊涅斯塔”或“小白”的名字命名巴塞罗那的青训并入队。'
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！）'
   },
   {
     id: 'youth_shortcoming',
     title: '短板',
     hint: '唯独你相信，他会是这支队伍的未来。',
-    clue: '尝试把不同名字的青训球员带入特定的队伍吧！'
+    clue: '尝试把不同名字的青训球员带入特定的队伍吧！）'
   },
   {
     id: 'guardiola_man_city',
