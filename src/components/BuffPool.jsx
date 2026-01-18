@@ -245,118 +245,133 @@ const BuffPool = () => {
   }, [filteredList, youthTraitSummary]);
 
   const shouldCollapse = combinedCards.length > 3;
+  const hiddenCollapsed = shouldCollapse && !expanded;
   const visibleCards = useMemo(() => {
     if (!shouldCollapse) return combinedCards;
-    return expanded ? combinedCards : combinedCards.slice(0, 3);
+    return expanded ? combinedCards : [];
   }, [combinedCards, expanded, shouldCollapse]);
 
   return (
-    <div className="retro-box p-2" data-onboard-id="buff_pool">
-        {confirmHideId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
-            <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-md w-full p-3">
-              <div className="font-bold text-sm font-mono mb-2">确认隐藏</div>
-              <div className="text-xs font-mono leading-relaxed text-gray-800">
-                你确认已经理解该状态带来的效果吗？
-              </div>
-              <div className="mt-3 flex justify-end gap-2">
-                <button
-                  onClick={() => setConfirmHideId(null)}
-                  className="retro-btn text-xs py-1 px-2"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={() => {
-                    dispatch({ type: 'HIDE_BUFF', payload: { id: confirmHideId } });
-                    setConfirmHideId(null);
-                  }}
-                  className="retro-btn-primary text-xs py-1 px-2"
-                >
-                  我已确认，请隐藏
-                </button>
-              </div>
+    <>
+      {confirmHideId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
+          <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-md w-full p-3">
+            <div className="font-bold text-sm font-mono mb-2">确认隐藏</div>
+            <div className="text-xs font-mono leading-relaxed text-gray-800">
+              你确认已经理解该状态带来的效果吗？
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmHideId(null)}
+                className="retro-btn text-xs py-1 px-2"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  dispatch({ type: 'HIDE_BUFF', payload: { id: confirmHideId } });
+                  setConfirmHideId(null);
+                }}
+                className="retro-btn-primary text-xs py-1 px-2"
+              >
+                我已确认，请隐藏
+              </button>
             </div>
           </div>
-        )}
-        <div className="flex items-center justify-between border-b-2 border-black pb-1 mb-2">
+        </div>
+      )}
+
+      {hiddenCollapsed ? (
+        <div className="flex justify-end" data-onboard-id="buff_pool">
+          <button
+            onClick={() => setExpanded(true)}
+            className="retro-btn text-[11px] py-1 px-2"
+          >
+            {`展开（+${combinedCards.length}）`}
+          </button>
+        </div>
+      ) : (
+        <div className="retro-box p-2" data-onboard-id="buff_pool">
+          <div className="flex items-center justify-between border-b-2 border-black pb-1 mb-2">
             <h3 className="text-sm font-bold font-mono uppercase">
-                状态池 (BUFFS/DEBUFFS)
+              状态池 (BUFFS/DEBUFFS)
             </h3>
             {shouldCollapse ? (
-                <button
-                    onClick={() => setExpanded(v => !v)}
-                    className="retro-btn text-[11px] py-1 px-2"
-                >
-                    {expanded ? '收起' : `展开（+${combinedCards.length - 3}）`}
-                </button>
+              <button
+                onClick={() => setExpanded(v => !v)}
+                className="retro-btn text-[11px] py-1 px-2"
+              >
+                {expanded ? '收起' : `展开（+${combinedCards.length}）`}
+              </button>
             ) : null}
-        </div>
-        
-        {combinedCards.length === 0 ? (
+          </div>
+
+          {combinedCards.length === 0 ? (
             <div className="text-gray-500 font-mono italic text-center py-2 text-xs">
-                当前无特殊状态
+              当前无特殊状态
             </div>
-        ) : (
+          ) : (
             <div className="grid grid-cols-1 gap-2">
-                {visibleCards.map((item, idx) => {
-                    if (item.type === 'youth') {
-                      return (
-                        <div key={`youth_${idx}`} className="border-2 border-green-800 bg-green-100 p-2 flex items-start justify-between gap-2">
-                          <div className="text-base">🟩</div>
-                          <div className="flex-1">
-                            <div className="font-bold text-xs text-green-900">青训加成</div>
-                            <div className="text-[10px] text-gray-700 font-mono leading-tight">青训[{youthTraitSummary.name}]{youthTraitSummary.hasArmband ? '（袖标×2）' : ''}</div>
-                            <div className="mt-1 space-y-0.5">
-                              {Array.isArray(youthTraitSummary.lines) ? youthTraitSummary.lines.map((t, i) => (
-                                <div key={i} className="text-[10px] text-gray-800 font-mono leading-tight">- {t}</div>
-                              )) : null}
-                            </div>
-                          </div>
+              {visibleCards.map((item, idx) => {
+                if (item.type === 'youth') {
+                  return (
+                    <div key={`youth_${idx}`} className="border-2 border-green-800 bg-green-100 p-2 flex items-start justify-between gap-2">
+                      <div className="text-base">🟩</div>
+                      <div className="flex-1">
+                        <div className="font-bold text-xs text-green-900">青训加成</div>
+                        <div className="text-[10px] text-gray-700 font-mono leading-tight">青训[{youthTraitSummary.name}]{youthTraitSummary.hasArmband ? '（袖标×2）' : ''}</div>
+                        <div className="mt-1 space-y-0.5">
+                          {Array.isArray(youthTraitSummary.lines) ? youthTraitSummary.lines.map((t, i) => (
+                            <div key={i} className="text-[10px] text-gray-800 font-mono leading-tight">- {t}</div>
+                          )) : null}
                         </div>
-                      );
-                    }
+                      </div>
+                    </div>
+                  );
+                }
 
-                    const buffId = item.id;
-                    const def = buffDefinitions[buffId];
-                    if (!def) return null;
-                    
-                    const isBuff = def.type === 'buff';
-                    const theme = def.theme;
-                    const bgColor = theme === 'blue'
-                      ? 'bg-blue-100'
-                      : (theme === 'pink' ? 'bg-red-50' : (isBuff ? 'bg-green-100' : 'bg-red-100'));
-                    const borderColor = theme === 'blue'
-                      ? 'border-blue-800'
-                      : (theme === 'pink' ? 'border-red-300' : (isBuff ? 'border-green-800' : 'border-red-800'));
-                    const textColor = theme === 'blue'
-                      ? 'text-blue-900'
-                      : (theme === 'pink' ? 'text-red-900' : (isBuff ? 'text-green-900' : 'text-red-900'));
-                    const canHide = hideableIds.has(buffId);
+                const buffId = item.id;
+                const def = buffDefinitions[buffId];
+                if (!def) return null;
 
-                    return (
-                        <div key={buffId} className={`border-2 ${borderColor} ${bgColor} p-2 flex items-start justify-between gap-2`}>
-                            <div className="text-base">{def.icon}</div>
-                            <div className="flex-1">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className={`font-bold text-xs ${textColor}`}>{def.name}</div>
-                                  {canHide ? (
-                                    <button
-                                      onClick={() => setConfirmHideId(buffId)}
-                                      className="retro-btn text-[10px] py-0.5 px-1.5"
-                                    >
-                                      隐藏
-                                    </button>
-                                  ) : null}
-                                </div>
-                                <div className="text-[10px] text-gray-700 font-mono leading-tight">{def.description}</div>
-                            </div>
-                        </div>
-                    );
-                })}
+                const isBuff = def.type === 'buff';
+                const theme = def.theme;
+                const bgColor = theme === 'blue'
+                  ? 'bg-blue-100'
+                  : (theme === 'pink' ? 'bg-red-50' : (isBuff ? 'bg-green-100' : 'bg-red-100'));
+                const borderColor = theme === 'blue'
+                  ? 'border-blue-800'
+                  : (theme === 'pink' ? 'border-red-300' : (isBuff ? 'border-green-800' : 'border-red-800'));
+                const textColor = theme === 'blue'
+                  ? 'text-blue-900'
+                  : (theme === 'pink' ? 'text-red-900' : (isBuff ? 'text-green-900' : 'text-red-900'));
+                const canHide = hideableIds.has(buffId);
+
+                return (
+                  <div key={buffId} className={`border-2 ${borderColor} ${bgColor} p-2 flex items-start justify-between gap-2`}>
+                    <div className="text-base">{def.icon}</div>
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className={`font-bold text-xs ${textColor}`}>{def.name}</div>
+                        {canHide ? (
+                          <button
+                            onClick={() => setConfirmHideId(buffId)}
+                            className="retro-btn text-[10px] py-0.5 px-1.5"
+                          >
+                            隐藏
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="text-[10px] text-gray-700 font-mono leading-tight">{def.description}</div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-        )}
-    </div>
+          )}
+        </div>
+      )}
+    </>
   );
 };
 
