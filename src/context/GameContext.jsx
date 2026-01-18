@@ -1940,21 +1940,39 @@ function gameReducer(state, action) {
         return {
             ...state,
             pendingSave: null
-        };
+        }
 
     case 'LOAD_GAME': {
         const next = hydrateLoadedState(action.payload);
         if (next) {
-            const team = teamsData.find(t => t.id === next.currentTeam.id);
+            let loaded = next;
+            const team = teamsData.find(t => t.id === loaded.currentTeam.id);
             if (team) {
                 const leagueId = team.leagueId || 'epl';
-                const leagueOpponents = buildLeagueOpponents({ leagueId, playerTeamId: team.id, playerTactics: next.stats.tactics });
+                const leagueOpponents = buildLeagueOpponents({ leagueId, playerTeamId: team.id, playerTactics: loaded.stats.tactics });
                 const leagueSchedule = buildLeagueSchedule({ leagueId, playerTeamId: team.id, opponents: leagueOpponents });
-                next.leagueOpponents = leagueOpponents;
-                next.leagueSchedule = leagueSchedule;
+                loaded.leagueOpponents = leagueOpponents;
+                loaded.leagueSchedule = leagueSchedule;
             }
+
+            const y = Number(loaded.year ?? 1);
+            if (y >= 6) {
+              const teamId = loaded.currentTeam?.id;
+              if (teamId === 'real_madrid') loaded = unlockAchievementInState(loaded, 'rm_5_years');
+              else if (teamId === 'ac_milan') loaded = unlockAchievementInState(loaded, 'ac_milan_5_years');
+              else if (teamId === 'fc_barcelona') loaded = unlockAchievementInState(loaded, 'barca_5_years');
+              else if (teamId === 'dortmund') loaded = unlockAchievementInState(loaded, 'dortmund_5_years');
+              else if (teamId === 'chelsea') loaded = unlockAchievementInState(loaded, 'chelsea_5_years');
+              else if (teamId === 'liverpool') loaded = unlockAchievementInState(loaded, 'liverpool_5_years');
+              else if (teamId === 'arsenal') loaded = unlockAchievementInState(loaded, 'arsenal_5_years');
+              else if (teamId === 'man_utd') loaded = unlockAchievementInState(loaded, 'manutd_5_years');
+              else if (teamId === 'bayern_munich') loaded = unlockAchievementInState(loaded, 'bayern_5_years');
+              else if (teamId === 'man_city') loaded = unlockAchievementInState(loaded, 'man_city_5_years');
+            }
+
+            return loaded;
         }
-        return next ? next : state;
+        return state;
     }
 
     case 'UPDATE_STATS': {
@@ -3486,6 +3504,39 @@ function gameReducer(state, action) {
                     nextMonth = 1;
                     nextQuarter = 1;
                     nextYear = (state.year ?? 1) + 1;
+
+                    if (nextYear >= 6 && nextYear !== state.year) {
+                      if (state.currentTeam?.id === 'real_madrid') {
+                        nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'rm_5_years');
+                      }
+                      if (state.currentTeam?.id === 'ac_milan') {
+                        nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'ac_milan_5_years');
+                      }
+                      if (state.currentTeam?.id === 'fc_barcelona') {
+                        nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'barca_5_years');
+                      }
+                      if (state.currentTeam?.id === 'dortmund') {
+                        nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'dortmund_5_years');
+                      }
+                      if (state.currentTeam?.id === 'chelsea') {
+                        nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'chelsea_5_years');
+                      }
+                      if (state.currentTeam?.id === 'liverpool') {
+                        nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'liverpool_5_years');
+                      }
+                      if (state.currentTeam?.id === 'arsenal') {
+                        nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'arsenal_5_years');
+                      }
+                      if (state.currentTeam?.id === 'man_utd') {
+                        nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'manutd_5_years');
+                      }
+                      if (state.currentTeam?.id === 'bayern_munich') {
+                        nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'bayern_5_years');
+                      }
+                      if (state.currentTeam?.id === 'man_city') {
+                        nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'man_city_5_years');
+                      }
+                    }
                     nextCoffeeRefUsedThisQuarter = false;
                     nextExplodeUsedThisQuarter = false;
                     nextRandomEventsThisYear = [];
