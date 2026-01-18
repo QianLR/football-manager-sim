@@ -3513,6 +3513,79 @@ function gameReducer(state, action) {
                         };
                       }
                     }
+                    {
+                      const shouldGrantSeasonFreePoint = state.youthSeasonFreePointsGrantedYear !== nextYear;
+
+                      if (Boolean(nextAchievementsState.youthAcademyUnlocked)) {
+                        const normalizedAcademy = normalizeYouthPlayer(nextAchievementsState.youthAcademyPlayer);
+                        const isBarca = state.currentTeam?.id === 'fc_barcelona';
+
+                        if (isBarca) {
+                          nextAchievementsState = {
+                            ...nextAchievementsState,
+                            youthAcademyPlayer: generateYouthPlayer({ techMin: 4, techMax: 8 })
+                          };
+                        } else if (normalizedAcademy) {
+                          let nextAcademy = {
+                            ...normalizedAcademy,
+                            age: clampInt((normalizedAcademy.age ?? 17) + 1, 0, 99),
+                            freePoints: clampInt((normalizedAcademy.freePoints ?? 0), 0, 9999)
+                          };
+
+                          if ((nextAcademy.specialTraitId || '') === 'eco_guardian') {
+                            nextAcademy = {
+                              ...nextAcademy,
+                              ecoMissingSeasonYear: clampInt(nextYear, 0, 99),
+                              ecoMissingQuarter: clampInt(1 + Math.floor(Math.random() * 3), 0, 3)
+                            };
+                          }
+
+                          nextAchievementsState = { ...nextAchievementsState, youthAcademyPlayer: nextAcademy };
+                        } else {
+                          nextAchievementsState = {
+                            ...nextAchievementsState,
+                            youthAcademyPlayer: generateYouthPlayer()
+                          };
+                        }
+
+                        const youthLimit = getYouthSquadMax(state.currentTeam?.id);
+                        nextYouthSquadPlayers = Array.isArray(nextYouthSquadPlayers)
+                          ? nextYouthSquadPlayers
+                            .map(normalizeYouthPlayer)
+                            .filter(Boolean)
+                            .slice(0, youthLimit)
+                          : [];
+
+                        nextYouthSquadPlayers = nextYouthSquadPlayers.map(p => {
+                          let next = {
+                            ...p,
+                            age: clampInt((p.age ?? 17) + 1, 0, 99),
+                            freePoints: clampInt((p.freePoints ?? 0) + (shouldGrantSeasonFreePoint ? 1 : 0), 0, 9999)
+                          };
+
+                          if ((next.positiveTraitId || '') === 'loyal' && next.hasArmband) {
+                            next = { ...next, diligence: clampInt((next.diligence ?? 0) + 2, 0, 10) };
+                          }
+
+                          if ((next.specialTraitId || '') === 'eco_guardian') {
+                            next = {
+                              ...next,
+                              ecoMissingSeasonYear: clampInt(nextYear, 0, 99),
+                              ecoMissingQuarter: clampInt(1 + Math.floor(Math.random() * 3), 0, 3)
+                            };
+                          }
+
+                          return next;
+                        });
+                      }
+
+                      if (shouldGrantSeasonFreePoint) {
+                        nextAchievementsState = {
+                          ...nextAchievementsState,
+                          youthSeasonFreePointsGrantedYear: nextYear
+                        };
+                      }
+                    }
 
                     {
                       const seasonYear = state.year;
