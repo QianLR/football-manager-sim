@@ -162,6 +162,8 @@ function getYouthSquadAddLimit(_teamId, _funds) {
   return 1;
 }
 
+const YOUTH_TECH_MAX = 15;
+
 function clampFunds(value, teamId) {
   const v = typeof value === 'number' ? value : 0;
   return teamId === 'fc_barcelona' ? v : Math.max(0, v);
@@ -169,7 +171,7 @@ function clampFunds(value, teamId) {
 
 function computeYouthTechTacticsDelta(playerTech, teamTactics) {
   if (playerTech === null || playerTech === undefined) return 0;
-  const tech = clampNumber(playerTech ?? 0, 0, 10);
+  const tech = clampNumber(playerTech ?? 0, 0, YOUTH_TECH_MAX);
   const tactics = clampNumber(teamTactics ?? 0, 0, 10);
   const diff = tech - tactics;
   if (diff > 2) return 1;
@@ -195,7 +197,7 @@ function getBestYouthStarterTech(squadPlayers, ctx) {
     ) {
       continue;
     }
-    const t = clampNumber(p.tech ?? 0, 0, 10);
+    const t = clampNumber(p.tech ?? 0, 0, YOUTH_TECH_MAX);
     if (best === null || t > best) best = t;
   }
   return best;
@@ -209,9 +211,9 @@ function generateYouthPlayer({ freePoints = 0, techMin = 5, techMax = 5 } = {}) 
     attrs[k] = clampInt((attrs[k] ?? 0) + 1, 0, 10);
   }
 
-  const lo = clampInt(Math.min(techMin, techMax), 0, 10);
-  const hi = clampInt(Math.max(techMin, techMax), 0, 10);
-  const tech = clampNumber(lo + Math.floor(Math.random() * (hi - lo + 1)), 0, 10);
+  const lo = clampInt(Math.min(techMin, techMax), 0, YOUTH_TECH_MAX);
+  const hi = clampInt(Math.max(techMin, techMax), 0, YOUTH_TECH_MAX);
+  const tech = clampNumber(lo + Math.floor(Math.random() * (hi - lo + 1)), 0, YOUTH_TECH_MAX);
 
   const traits = rollYouthTraits();
   return {
@@ -246,7 +248,7 @@ function normalizeYouthPlayer(raw) {
     unity: clampInt(raw.unity ?? 0, 0, 10),
     authority: clampInt(raw.authority ?? 0, 0, 10),
     diligence: clampInt(raw.diligence ?? 0, 0, 10),
-    tech: clampNumber(raw.tech ?? 4, 0, 10),
+    tech: clampNumber(raw.tech ?? 4, 0, YOUTH_TECH_MAX),
     freePoints: clampInt(raw.freePoints ?? 0, 0, 9999),
     starterMatches: clampInt(raw.starterMatches ?? 0, 0, 999999),
     benchMatches: clampInt(raw.benchMatches ?? 0, 0, 999999),
@@ -1449,7 +1451,7 @@ function isKakaName(name) {
   }
 
   const tactics = clampNumber(state.stats?.tactics ?? 0, 0, 10);
-  const tech = clampNumber(p.tech ?? 0, 0, 10);
+  const tech = clampNumber(p.tech ?? 0, 0, YOUTH_TECH_MAX);
   if (tech < tactics) {
     next = unlockAchievementInState(next, 'youth_shortcoming');
   }
@@ -2570,7 +2572,7 @@ function gameReducer(state, action) {
     case 'YOUTH_SELL': {
         const scope = action.payload?.scope;
         const calcPrice = (player) => {
-          const tech = clampNumber(player?.tech ?? 0, 0, 10);
+          const tech = clampNumber(player?.tech ?? 0, 0, YOUTH_TECH_MAX);
           return 10 + Math.max(0, tech - 4) * 10;
         };
 
@@ -3567,7 +3569,7 @@ function gameReducer(state, action) {
                     {
                       const shouldGrantSeasonFreePoint = state.youthSeasonFreePointsGrantedYear !== nextYear;
 
-                      if (Boolean(nextAchievementsState.youthAcademyUnlocked)) {
+                      if (nextAchievementsState.youthAcademyUnlocked) {
                         const normalizedAcademy = normalizeYouthPlayer(nextAchievementsState.youthAcademyPlayer);
                         const isBarca = state.currentTeam?.id === 'fc_barcelona';
 
@@ -3850,6 +3852,10 @@ function gameReducer(state, action) {
 
         if (nextGameStateAfterMonth === 'gameover' && state.currentTeam?.id === 'man_utd' && isAlonsoName(state.playerName)) {
           stateAfterMonth = unlockAchievementInState(stateAfterMonth, 'alonso_manutd_fired');
+        }
+
+        if (nextGameStateAfterMonth === 'relegation_resign') {
+          stateAfterMonth = unlockAchievementInState(stateAfterMonth, 'relegation_resign');
         }
 
         return stateAfterMonth;
