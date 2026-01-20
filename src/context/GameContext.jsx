@@ -1972,6 +1972,19 @@ function gameReducer(state, action) {
               else if (teamId === 'man_city') loaded = unlockAchievementInState(loaded, 'man_city_5_years');
             }
 
+            if (loaded.currentTeam?.id === 'man_city' && isGuardiolaName(loaded.playerName)) {
+              const leagueYears = new Set((Array.isArray(loaded.leagueChampionYears) ? loaded.leagueChampionYears : []).filter(v => typeof v === 'number'));
+              const uclYears = new Set((Array.isArray(loaded.uclChampionYears) ? loaded.uclChampionYears : []).filter(v => typeof v === 'number'));
+              let hasDoubleCrown = false;
+              leagueYears.forEach(v => {
+                if (!hasDoubleCrown && uclYears.has(v)) hasDoubleCrown = true;
+              });
+              if (!hasDoubleCrown && loaded.gameState === 'double_crown') hasDoubleCrown = true;
+              if (hasDoubleCrown) {
+                loaded = unlockAchievementInState(loaded, 'guardiola_man_city_double_crown');
+              }
+            }
+
             return loaded;
         }
         return state;
@@ -3488,6 +3501,9 @@ function gameReducer(state, action) {
                     nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'double_crown');
                     if (state.currentTeam?.id === 'dortmund' && isKloppName(state.playerName)) {
                         nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'klopp_dortmund_double_crown');
+                    }
+                    if (state.currentTeam?.id === 'man_city' && isGuardiolaName(state.playerName)) {
+                        nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'guardiola_man_city_double_crown');
                     }
                     statsAfterMonth.points = 0;
                     statsAfterMonth.tactics = Math.max(0, Math.min(10, (statsAfterMonth.tactics ?? 0) - 2));
