@@ -657,7 +657,9 @@ function buildSavePayload(state, type, slot) {
   };
 }
 
-function _buildChoiceOutcomeEvent({ baseEvent, option, effectsPreview, nextEvent }) {
+function _buildChoiceOutcomeEvent({ baseEvent, option, effectsPreview, nextEvent, setPendingGameState }) {
+  const confirm = { text: '确定', effects: {}, nextEvent };
+  if (setPendingGameState) confirm.setPendingGameState = setPendingGameState;
   return {
     id: `outcome_${baseEvent?.id || 'event'}_${option?.id || 'choice'}`,
     title: baseEvent?.title || '后果',
@@ -665,7 +667,7 @@ function _buildChoiceOutcomeEvent({ baseEvent, option, effectsPreview, nextEvent
     effects: {},
     effectsPreview: effectsPreview || {},
     isOutcome: true,
-    options: [{ text: '确定', effects: {}, nextEvent }]
+    options: [confirm]
   };
 }
 
@@ -3338,7 +3340,7 @@ function gameReducer(state, action) {
             const prepared = cloneAndReplaceEventText(picked, state);
             if (prepared) {
               prepared.youthMixerEvent = true;
-              pickedEvents.push(prepared);
+              pickedEvents.unshift(prepared);
               if (prepared.id && !nextRandomEventsThisYear.includes(prepared.id)) {
                 nextRandomEventsThisYear.push(prepared.id);
               }
@@ -3380,8 +3382,12 @@ function gameReducer(state, action) {
 
             const intro = buildUclIntroEvent();
             if (settlementEvent) {
-                const prevNext = settlementEvent.nextEvent;
-                settlementEvent = { ...settlementEvent, nextEvent: { ...intro, nextEvent: prevNext } };
+                if (shouldTriggerMixerYouthEvent) {
+                  eventToTrigger = eventToTrigger ? appendEventToTail(eventToTrigger, intro) : intro;
+                } else {
+                  const prevNext = settlementEvent.nextEvent;
+                  settlementEvent = { ...settlementEvent, nextEvent: { ...intro, nextEvent: prevNext } };
+                }
             } else {
                 if (eventToTrigger) intro.nextEvent = eventToTrigger;
                 eventToTrigger = intro;
@@ -3506,7 +3512,11 @@ function gameReducer(state, action) {
                         nextAchievementsState = unlockAchievementInState(nextAchievementsState, 'guardiola_man_city_double_crown');
                     }
                     statsAfterMonth.points = 0;
-                    statsAfterMonth.tactics = Math.max(0, Math.min(10, (statsAfterMonth.tactics ?? 0) - 2));
+                    {
+                      const youthSeasonProfile = getYouthSquadProfile(nextYouthSquadPlayers);
+                      const drop = youthSeasonProfile.seasonTacticsDrop;
+                      statsAfterMonth.tactics = Math.max(0, Math.min(10, (statsAfterMonth.tactics ?? 0) - drop));
+                    }
                     statsAfterMonth.funds = clampFunds((statsAfterMonth.funds ?? 0) + 10, state.currentTeam?.id);
 
                     if (state.currentTeam?.id === 'ac_milan') {
@@ -4418,18 +4428,34 @@ function gameReducer(state, action) {
         // If this event reveals outcome text after choice, insert an outcome event before continuing.
         // EventCard hides opt.effects when revealAfterChoice is true, so the outcome event is the place
         // where both the outcome text and effect preview should be shown.
+        const rawOutcomeText = typeof action.payload?.outcomeText === 'string'
+          ? action.payload.outcomeText.trim()
+          : '';
+        let outcomeTextToShow = rawOutcomeText;
         if (
-          state.currentEvent?.revealAfterChoice &&
-          !state.currentEvent?.isOutcome &&
-          typeof action.payload?.outcomeText === 'string' &&
-          action.payload.outcomeText.trim().length > 0
+          !outcomeTextToShow &&
+          isRandomEventId(state.currentEvent?.id, state.currentTeam?.id) &&
+          typeof action.payload?.text === 'string' &&
+          action.payload.text.trim().length > 0
         ) {
+          outcomeTextToShow = `你选择了：${action.payload.text.trim()}`;
+        }
+
+        let deferredGameState = null;
+        if (!state.currentEvent?.isOutcome && outcomeTextToShow.length > 0 && gameStateAfterEvent !== 'playing') {
+          deferredGameState = gameStateAfterEvent;
+          gameStateAfterEvent = 'playing';
+        }
+
+        if (!state.currentEvent?.isOutcome && outcomeTextToShow.length > 0) {
           const follow = nextCurrentEvent || null;
+          const option = { ...action.payload, outcomeText: outcomeTextToShow };
           nextCurrentEvent = _buildChoiceOutcomeEvent({
             baseEvent: state.currentEvent,
-            option: action.payload,
+            option,
             effectsPreview: action.payload.effects || {},
-            nextEvent: follow
+            nextEvent: follow,
+            setPendingGameState: deferredGameState
           });
           nextQueuedEvent = null;
         }
