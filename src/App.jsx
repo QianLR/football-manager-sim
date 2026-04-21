@@ -261,6 +261,9 @@ function OnboardingOverlay({ stepIndex, steps, onNext, onPrev, onSkip, onFinish,
 
 function App() {
   const { state, dispatch } = useGame();
+  const prevGameStateRef = useRef(state.gameState);
+  const [selectedMode, setSelectedMode] = useState(null);
+  const [showMigrationNotice, setShowMigrationNotice] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [coachingPhilosophy, setCoachingPhilosophy] = useState('');
   const [selectedTeam, setSelectedTeam] = useState(null);
@@ -301,6 +304,23 @@ function App() {
     ? state.achievementToastQueue[0]
     : null;
 
+  const migrationNoticeContext = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return { shouldShow: false, hostname: '', dismissKey: 'gsm_migration_notice_dismissed_v3' };
+    }
+
+    const hostname = window.location.hostname || '';
+    return {
+      shouldShow:
+        hostname === 'football-manager-sim.pages.dev' ||
+        hostname === 'rowaninc.ccwu.cc' ||
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1',
+      hostname,
+      dismissKey: 'gsm_migration_notice_dismissed_v3'
+    };
+  }, []);
+
   useEffect(() => {
     if (!currentToast) return;
     const t = setTimeout(() => {
@@ -308,6 +328,30 @@ function App() {
     }, 1800);
     return () => clearTimeout(t);
   }, [currentToast?.id]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!migrationNoticeContext.shouldShow) return;
+
+    try {
+      const dismissed = window.localStorage.getItem(migrationNoticeContext.dismissKey);
+      if (dismissed === '1') return;
+    } catch {
+      // ignore
+    }
+
+    setShowMigrationNotice(true);
+  }, [migrationNoticeContext]);
+
+  useEffect(() => {
+    const prevGameState = prevGameStateRef.current;
+    if (state.gameState === 'start' && prevGameState !== 'start') {
+      setSelectedMode(null);
+      setTeamInfoId(null);
+      setShowMourinhoConfirm(false);
+    }
+    prevGameStateRef.current = state.gameState;
+  }, [state.gameState]);
 
   const openAchievementsModal = ({ title, unlockedMap, markSeen }) => {
     setAchievementsModalTitle(title || '成就');
@@ -317,6 +361,100 @@ function App() {
       dispatch({ type: 'MARK_ALL_ACHIEVEMENTS_SEEN' });
     }
   };
+
+  const dismissMigrationNotice = (remember = false) => {
+    if (remember && typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(migrationNoticeContext.dismissKey, '1');
+      } catch {
+        // ignore
+      }
+    }
+    setShowMigrationNotice(false);
+  };
+
+  const migrationNoticeModal = showMigrationNotice && migrationNoticeContext.shouldShow ? (
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center p-3 bg-black/40">
+      <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-2xl w-full p-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="font-bold text-sm font-mono">站点迁移通知</div>
+          <button
+            onClick={() => dismissMigrationNotice(false)}
+            className="retro-btn text-xs py-1 px-2"
+          >
+            关闭
+          </button>
+        </div>
+
+        <div className="text-xs font-mono text-black leading-relaxed space-y-2">
+          <p>
+            当前游戏现已提供双站入口：
+            <a
+              href="https://rowaninc.ccwu.cc"
+              target="_blank"
+              rel="noreferrer"
+              className="underline ml-1"
+            >
+              https://rowaninc.ccwu.cc
+            </a>
+          </p>
+          <p>
+            新站：
+            <a
+              href="https://rowaninc.ccwu.cc"
+              target="_blank"
+              rel="noreferrer"
+              className="underline mx-1"
+            >
+              https://rowaninc.ccwu.cc
+            </a>
+            <br />
+            旧站：
+            <a
+              href="https://football-manager-sim.pages.dev"
+              target="_blank"
+              rel="noreferrer"
+              className="underline mx-1"
+            >
+              https://football-manager-sim.pages.dev
+            </a>
+            <br />
+            旧站仍然可以继续使用，但由于浏览器会按域名分别保存本地存档，建议后续优先使用新站。如果你之前已经在旧站玩过，原有存档与成就都可以迁移。
+          </p>
+
+          <div className="border-2 border-black p-2 bg-gray-50">
+            <div className="font-bold mb-1">如何迁移存档</div>
+            <div>1. 在旧站 `football-manager-sim.pages.dev` 打开游戏，点击页面下方的“存档入口”。</div>
+            <div>2. 在“存档迁移（导出 / 导入）”区域点击“生成导出文本”，再点击“复制导出文本”。</div>
+            <div>3. 打开新站 `https://rowaninc.ccwu.cc`。</div>
+            <div>4. 在新域名再次点击页面下方的“存档入口”，把刚才复制的内容粘贴到“粘贴导入文本”文本框。</div>
+            <div>5. 依次点击“验证并准备导入”与“确认导入（覆盖存档与成就）”，页面刷新后即可完成迁移。</div>
+          </div>
+
+          <div className="text-[11px] text-gray-700">
+            提示：迁移会同时带走自动存档、手动存档槽位和全局成就。为保险起见，你也可以先把导出文本另外保存一份。如果你之前在旧站有存档，请先导出，再到新站导入。
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap justify-end gap-2">
+          <button
+            onClick={() => dismissMigrationNotice(true)}
+            className="retro-btn text-xs py-1 px-2"
+          >
+            不再提示
+          </button>
+          <a
+            href="https://rowaninc.ccwu.cc"
+            target="_blank"
+            rel="noreferrer"
+            className="retro-btn-primary text-xs py-1 px-2 inline-flex items-center"
+          >
+            前往新域名
+          </a>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   useEffect(() => {
     if (!onboardingPending) return;
@@ -787,6 +925,7 @@ function App() {
     return (
       <div className="min-h-screen bg-[#e0e0e0] flex items-center justify-center p-2">
         <AchievementToast toast={currentToast} />
+        {migrationNoticeModal}
         <div className="retro-box p-3 max-w-sm w-full">
           {teamInfoId && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
@@ -865,106 +1004,159 @@ function App() {
           </div>
 
           <h1 className="text-xl font-bold text-center mb-3 text-black uppercase font-mono border-b-2 border-black pb-1">豪门教练模拟器v3.0</h1>
-          
-          <div className="mb-2">
-            <label className="block text-black text-xs font-bold mb-1 font-mono">
-              教练姓名 (限10字)
-            </label>
-            <input
-              type="text"
-              maxLength={10}
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-              className="appearance-none border-2 border-black w-full py-1 px-2 text-xs text-black leading-tight focus:outline-none focus:ring-2 focus:ring-black font-mono rounded-none"
-              placeholder="请输入您的名字"
-            />
-          </div>
 
-          <div className="mb-2">
-            <label className="block text-black text-xs font-bold mb-1 font-mono">
-              执教理念 (限50字)
-            </label>
-            <textarea
-              maxLength={50}
-              value={coachingPhilosophy}
-              onChange={(e) => setCoachingPhilosophy(e.target.value)}
-              className="appearance-none border-2 border-black w-full py-1 px-2 text-xs text-black leading-tight focus:outline-none focus:ring-2 focus:ring-black font-mono rounded-none"
-              placeholder="请输入您的执教理念"
-              rows={2}
-            />
-          </div>
-
-          <div className="mb-3">
-            <label className="block text-black text-xs font-bold mb-1 font-mono">
-              选择球队
-            </label>
-            <div className="space-y-2">
-              {groupedTeams.map(group => (
-                <div key={group.difficulty} className="border-2 border-black bg-white p-2">
-                  <div className="font-bold text-xs font-mono">{group.difficulty}</div>
-                  <div className="mt-2 space-y-2">
-                    {group.teams.map(team => (
-                      <div
-                        key={team.id}
-                        onClick={() => handleSelectTeam(team.id)}
-                        className={`p-2 border-2 border-black cursor-pointer transition-all font-mono ${
-                          selectedTeam === team.id ? 'bg-black text-white' : 'bg-white hover:bg-gray-200'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1">
-                          <div className="font-bold text-sm">{team.name}</div>
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setTeamInfoId(team.id);
-                            }}
-                            className={`inline-flex items-center justify-center w-4 h-4 border-2 border-black rounded-full text-[10px] font-bold bg-white hover:bg-gray-200 ${selectedTeam === team.id ? 'text-black' : 'text-black'}`}
-                            aria-label="查看球队介绍"
-                          >
-                            ?
-                          </button>
-                        </div>
-                        <div className={`text-[11px] font-semibold mt-0.5 ${selectedTeam === team.id ? 'text-red-300' : 'text-red-600'}`}>难度: {team.difficulty}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              {otherTeams.length > 0 && (
-                <div className="border-2 border-black bg-white p-2">
-                  <div className="font-bold text-xs font-mono">其他</div>
-                  <div className="mt-2 space-y-2">
-                    {otherTeams.map(team => (
-                      <div
-                        key={team.id}
-                        onClick={() => handleSelectTeam(team.id)}
-                        className={`p-2 border-2 border-black cursor-pointer transition-all font-mono ${
-                          selectedTeam === team.id ? 'bg-black text-white' : 'bg-white hover:bg-gray-200'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1">
-                          <div className="font-bold text-sm">{team.name}</div>
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setTeamInfoId(team.id);
-                            }}
-                            className={`inline-flex items-center justify-center w-4 h-4 border-2 border-black rounded-full text-[10px] font-bold bg-white hover:bg-gray-200 ${selectedTeam === team.id ? 'text-black' : 'text-black'}`}
-                            aria-label="查看球队介绍"
-                          >
-                            ?
-                          </button>
-                        </div>
-                        <div className={`text-[11px] font-semibold mt-0.5 ${selectedTeam === team.id ? 'text-red-300' : 'text-red-600'}`}>难度: {team.difficulty}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+          {!selectedMode && (
+            <div className="mb-3 space-y-2">
+              <button
+                onClick={() => setSelectedMode('regular')}
+                className="w-full retro-btn-primary text-sm py-3"
+              >
+                常规模式
+              </button>
+              <button
+                onClick={() => setSelectedMode('challenge')}
+                className="w-full retro-btn text-sm py-3"
+              >
+                挑战模式
+              </button>
             </div>
-          </div>
+          )}
+
+          {selectedMode === 'regular' && (
+            <>
+              <div className="mb-2 flex justify-end">
+                <button
+                  onClick={() => {
+                    setSelectedMode(null);
+                    setTeamInfoId(null);
+                    setShowMourinhoConfirm(false);
+                  }}
+                  className="retro-btn text-xs py-1 px-2"
+                >
+                  返回模式选择
+                </button>
+              </div>
+
+              <div className="mb-2">
+                <label className="block text-black text-xs font-bold mb-1 font-mono">
+                  教练姓名 (限10字)
+                </label>
+                <input
+                  type="text"
+                  maxLength={10}
+                  value={playerName}
+                  onChange={(e) => setPlayerName(e.target.value)}
+                  className="appearance-none border-2 border-black w-full py-1 px-2 text-xs text-black leading-tight focus:outline-none focus:ring-2 focus:ring-black font-mono rounded-none"
+                  placeholder="请输入您的名字"
+                />
+              </div>
+
+              <div className="mb-2">
+                <label className="block text-black text-xs font-bold mb-1 font-mono">
+                  执教理念 (限50字)
+                </label>
+                <textarea
+                  maxLength={50}
+                  value={coachingPhilosophy}
+                  onChange={(e) => setCoachingPhilosophy(e.target.value)}
+                  className="appearance-none border-2 border-black w-full py-1 px-2 text-xs text-black leading-tight focus:outline-none focus:ring-2 focus:ring-black font-mono rounded-none"
+                  placeholder="请输入您的执教理念"
+                  rows={2}
+                />
+              </div>
+
+              <div className="mb-3">
+                <label className="block text-black text-xs font-bold mb-1 font-mono">
+                  选择球队
+                </label>
+                <div className="space-y-2">
+                  {groupedTeams.map(group => (
+                    <div key={group.difficulty} className="border-2 border-black bg-white p-2">
+                      <div className="font-bold text-xs font-mono">{group.difficulty}</div>
+                      <div className="mt-2 space-y-2">
+                        {group.teams.map(team => (
+                          <div
+                            key={team.id}
+                            onClick={() => handleSelectTeam(team.id)}
+                            className={`p-2 border-2 border-black cursor-pointer transition-all font-mono ${
+                              selectedTeam === team.id ? 'bg-black text-white' : 'bg-white hover:bg-gray-200'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1">
+                              <div className="font-bold text-sm">{team.name}</div>
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setTeamInfoId(team.id);
+                                }}
+                                className="inline-flex items-center justify-center w-4 h-4 border-2 border-black rounded-full text-[10px] font-bold bg-white hover:bg-gray-200 text-black"
+                                aria-label="查看球队介绍"
+                              >
+                                ?
+                              </button>
+                            </div>
+                            <div className={`text-[11px] font-semibold mt-0.5 ${selectedTeam === team.id ? 'text-red-300' : 'text-red-600'}`}>难度: {team.difficulty}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {otherTeams.length > 0 && (
+                    <div className="border-2 border-black bg-white p-2">
+                      <div className="font-bold text-xs font-mono">其他</div>
+                      <div className="mt-2 space-y-2">
+                        {otherTeams.map(team => (
+                          <div
+                            key={team.id}
+                            onClick={() => handleSelectTeam(team.id)}
+                            className={`p-2 border-2 border-black cursor-pointer transition-all font-mono ${
+                              selectedTeam === team.id ? 'bg-black text-white' : 'bg-white hover:bg-gray-200'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1">
+                              <div className="font-bold text-sm">{team.name}</div>
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setTeamInfoId(team.id);
+                                }}
+                                className="inline-flex items-center justify-center w-4 h-4 border-2 border-black rounded-full text-[10px] font-bold bg-white hover:bg-gray-200 text-black"
+                                aria-label="查看球队介绍"
+                              >
+                                ?
+                              </button>
+                            </div>
+                            <div className={`text-[11px] font-semibold mt-0.5 ${selectedTeam === team.id ? 'text-red-300' : 'text-red-600'}`}>难度: {team.difficulty}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {selectedMode === 'challenge' && (
+            <div className="mb-3 border-2 border-black bg-white p-3">
+              <div className="flex justify-end mb-2">
+                <button
+                  onClick={() => setSelectedMode(null)}
+                  className="retro-btn text-xs py-1 px-2"
+                >
+                  返回模式选择
+                </button>
+              </div>
+              <div className="font-bold text-sm font-mono mb-2">挑战模式</div>
+              <div className="text-xs font-mono text-gray-800 leading-relaxed">
+                挑战模式即将作为新项目开发。
+                <br />
+                当前版本中，原有全部俱乐部内容已收录进常规模式。
+              </div>
+            </div>
+          )}
 
           <button
             onClick={() => setShowSaveModal(true)}
@@ -973,17 +1165,19 @@ function App() {
             存档入口
           </button>
 
-          <button
-            onClick={() => handleStartGame(false)}
-            disabled={!playerName || !coachingPhilosophy || !selectedTeam}
-            className={`w-full font-bold py-2 px-3 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all font-mono text-base ${
-              playerName && coachingPhilosophy && selectedTeam
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            开始执教
-          </button>
+          {selectedMode === 'regular' && (
+            <button
+              onClick={() => handleStartGame(false)}
+              disabled={!playerName || !coachingPhilosophy || !selectedTeam}
+              className={`w-full font-bold py-2 px-3 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all font-mono text-base ${
+                playerName && coachingPhilosophy && selectedTeam
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              开始执教
+            </button>
+          )}
 
           <AchievementsModal
             open={showAchievementsModal}
@@ -1150,6 +1344,7 @@ function App() {
   return (
     <div className="h-screen bg-[#e0e0e0] p-2 font-mono overflow-hidden">
       <AchievementToast toast={currentToast} />
+      {migrationNoticeModal}
 
       <div className="max-w-6xl w-full h-full mx-auto flex flex-col gap-2 relative">
         {state.gameState === 'playing' && (
