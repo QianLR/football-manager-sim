@@ -8,8 +8,12 @@ import teamsData from './data/teams.json';
 import AchievementsModal from './components/AchievementsModal';
 import AchievementToast from './components/AchievementToast';
 import YouthAcademyModal from './components/YouthAcademyModal';
+import ChallengeDashboard from './components/ChallengeDashboard';
+import ChallengeEventCard from './components/ChallengeEventCard';
 import { ACHIEVEMENTS } from './data/achievements';
 import { readGlobalAchievements } from './data/achievementsStorage';
+
+const POST_MIGRATION_APOLOGY_KEY = 'gsm_post_migration_apology_pending_v1';
 
 function OnboardingOverlay({ stepIndex, steps, onNext, onPrev, onSkip, onFinish, finishText }) {
   const step = Array.isArray(steps) ? steps[stepIndex] : null;
@@ -283,10 +287,8 @@ function App() {
   const [achievementsModalUnlockedMap, setAchievementsModalUnlockedMap] = useState(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showYouthAcademyModal, setShowYouthAcademyModal] = useState(false);
-
-  const globalAchievements = useMemo(() => {
-    return readGlobalAchievements();
-  }, [state.achievementsUnlocked]);
+  const [globalAchievements, setGlobalAchievements] = useState(() => readGlobalAchievements());
+  const [showPostMigrationApology, setShowPostMigrationApology] = useState(false);
 
   const globalUnlockedCount = useMemo(() => Object.keys(globalAchievements || {}).length, [globalAchievements]);
   const globalRecentUnlockedIds = useMemo(() => {
@@ -330,6 +332,22 @@ function App() {
   }, [currentToast?.id]);
 
   useEffect(() => {
+    setGlobalAchievements(readGlobalAchievements());
+  }, [state.achievementsUnlocked]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const handleStorage = (event) => {
+      if (event.key && event.key !== 'gsm_achievements_global_v1') return;
+      setGlobalAchievements(readGlobalAchievements());
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!migrationNoticeContext.shouldShow) return;
 
@@ -342,6 +360,20 @@ function App() {
 
     setShowMigrationNotice(true);
   }, [migrationNoticeContext]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const pending = window.localStorage.getItem(POST_MIGRATION_APOLOGY_KEY);
+      if (pending === '1') {
+        setShowPostMigrationApology(true);
+        window.localStorage.removeItem(POST_MIGRATION_APOLOGY_KEY);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     const prevGameState = prevGameStateRef.current;
@@ -451,6 +483,39 @@ function App() {
           >
             前往新域名
           </a>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  const postMigrationApologyModal = showPostMigrationApology ? (
+    <div className="fixed inset-0 z-[1250] flex items-center justify-center p-3 bg-black/40">
+      <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-lg w-full p-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="font-bold text-sm font-mono">迁移完成后的说明</div>
+          <button
+            onClick={() => setShowPostMigrationApology(false)}
+            className="retro-btn text-xs py-1 px-2"
+          >
+            关闭
+          </button>
+        </div>
+        <div className="text-xs font-mono text-black leading-relaxed space-y-2">
+          <p>
+            很抱歉，之前的版本更新导致部分用户在部分设备上出现旧存档不显示的问题，给你带来了麻烦。
+          </p>
+          <p>
+            你刚刚完成的是跨站迁移导入，原有存档和全局成就现在已经一起写入当前站点。
+            如果之后仍有异常，可以再通过“存档入口”重新导入一次备份文本。
+          </p>
+        </div>
+        <div className="mt-3 flex justify-end">
+          <button
+            onClick={() => setShowPostMigrationApology(false)}
+            className="retro-btn-primary text-xs py-1 px-2"
+          >
+            我知道了
+          </button>
         </div>
       </div>
     </div>
@@ -926,6 +991,7 @@ function App() {
       <div className="min-h-screen bg-[#e0e0e0] flex items-center justify-center p-2">
         <AchievementToast toast={currentToast} />
         {migrationNoticeModal}
+        {postMigrationApologyModal}
         <div className="retro-box p-3 max-w-sm w-full">
           {teamInfoId && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
@@ -1200,6 +1266,34 @@ function App() {
     if (showOnboarding) setShowOnboarding(false);
     if (showSeason2Onboarding) setShowSeason2Onboarding(false);
 
+    if (state.selectedGameMode === 'challenge') {
+      const text = state.gameoverOverrideText || `西班牙的世界杯挑战提前结束了。${state.playerName}没能撑到最后。`;
+      return (
+        <div className="min-h-screen bg-white flex items-center justify-center p-3 text-black font-mono">
+          <AchievementToast toast={currentToast} />
+          {migrationNoticeModal}
+          <div className="text-center max-w-xl border-4 border-black p-4 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+            <h1 className="text-2xl font-bold mb-3 uppercase tracking-tighter">挑战失败</h1>
+            <p className="text-sm mb-4 whitespace-pre-wrap leading-relaxed">{text}</p>
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={() => dispatch({ type: 'SET_GAME_STATE', payload: { gameState: 'start' } })}
+                className="bg-white text-black px-4 py-2 text-sm font-bold hover:bg-gray-100 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+              >
+                返回开始
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="bg-black text-white px-4 py-2 text-sm font-bold hover:bg-gray-800 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+              >
+                重新开始
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     const seasonMonth = (state.quarter - 1) * 3 + state.month;
 
     const isAlonsoName = (name) => {
@@ -1307,6 +1401,35 @@ function App() {
       );
   }
 
+  if (state.gameState === 'challenge_victory') {
+    const teamName = state.currentTeam?.name || '你的球队';
+    const text = `恭喜你带领${teamName}赢得世界杯冠军。四场友谊赛、三场小组赛与四场淘汰赛之后，你终于站上了世界之巅。`;
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center p-3 text-black font-mono">
+        <AchievementToast toast={currentToast} />
+        {migrationNoticeModal}
+        <div className="text-center max-w-xl border-4 border-black p-4 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <h1 className="text-2xl font-bold mb-3 uppercase tracking-tighter">世界杯冠军</h1>
+          <p className="text-sm mb-4 whitespace-pre-wrap leading-relaxed">{text}</p>
+          <div className="flex gap-2 justify-center">
+            <button
+              onClick={() => dispatch({ type: 'SET_GAME_STATE', payload: { gameState: 'start' } })}
+              className="bg-white text-black px-4 py-2 text-sm font-bold hover:bg-gray-100 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+            >
+              返回开始
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-black text-white px-4 py-2 text-sm font-bold hover:bg-gray-800 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+            >
+              重新开始
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (state.gameState === 'relegation_resign') {
     if (showOnboarding) setShowOnboarding(false);
     if (showSeason2Onboarding) setShowSeason2Onboarding(false);
@@ -1345,6 +1468,7 @@ function App() {
     <div className="h-screen bg-[#e0e0e0] p-2 font-mono overflow-hidden">
       <AchievementToast toast={currentToast} />
       {migrationNoticeModal}
+      {postMigrationApologyModal}
 
       <div className="max-w-6xl w-full h-full mx-auto flex flex-col gap-2 relative">
         {state.gameState === 'playing' && (
@@ -1367,11 +1491,17 @@ function App() {
           </div>
         )}
         <div className="space-y-2 overflow-auto">
-          <Dashboard onOpenYouthAcademy={() => setShowYouthAcademyModal(true)} />
-          <BuffPool />
+          {state.selectedGameMode === 'challenge' ? (
+            <ChallengeDashboard />
+          ) : (
+            <>
+              <Dashboard onOpenYouthAcademy={() => setShowYouthAcademyModal(true)} />
+              <BuffPool />
+            </>
+          )}
         </div>
         <div className="flex-1 overflow-auto">
-          <EventCard />
+          {state.selectedGameMode === 'challenge' ? <ChallengeEventCard /> : <EventCard />}
         </div>
       </div>
 

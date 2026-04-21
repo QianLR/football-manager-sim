@@ -2,11 +2,20 @@ import React, { useReducer, useEffect } from 'react';
 import teamsData from '../data/teams.json';
 import eventsData from '../data/events.json';
 import { getLeagueRoster, getUclSeedPool } from '../data/leagues';
+import {
+  CHALLENGE_LEGENDS,
+  CHALLENGE_MODE_TEAM,
+  CHALLENGE_MODE_DECISIONS,
+  CHALLENGE_GROUP_FIXTURES,
+  CHALLENGE_GROUP_TEAMS,
+  CHALLENGE_KNOCKOUT_PATHS
+} from '../data/challengeMode';
 
 import { GameContext } from './GameContextInstance';
 
 const initialState = {
   gameState: 'start', // start, playing, gameover, victory
+  selectedGameMode: null,
   currentTeam: null,
   playerName: '',
   coachingPhilosophy: '', // Added coaching philosophy
@@ -88,7 +97,8 @@ const initialState = {
   youthRefreshUsedThisQuarter: false,
   youthSeasonFreePointsGrantedYear: 0,
   leagueChampionYears: [],
-  uclChampionYears: []
+  uclChampionYears: [],
+  challenge: null
 };
 
 function makeYouthId() {
@@ -687,12 +697,25 @@ function hydrateLoadedState(raw) {
 
   const next = { ...initialState, ...raw, pendingSave: null, season2TutorialShown: raw.season2TutorialShown || false };
 
+  if (next.selectedGameMode !== 'regular' && next.selectedGameMode !== 'challenge') {
+    next.selectedGameMode = next.currentTeam?.id === CHALLENGE_MODE_TEAM.id ? 'challenge' : (next.currentTeam ? 'regular' : null);
+  }
+
+  if (next.selectedGameMode !== 'challenge') {
+    next.challenge = null;
+  }
+
   if (next.currentTeam && typeof next.currentTeam === 'string') {
     const found = teamsData.find(t => t.id === next.currentTeam);
-    next.currentTeam = found || null;
+    next.currentTeam = found || (next.selectedGameMode === 'challenge' && next.currentTeam === CHALLENGE_MODE_TEAM.id ? { ...CHALLENGE_MODE_TEAM } : null);
+  }
+
+  if (!next.currentTeam && next.selectedGameMode === 'challenge') {
+    next.currentTeam = { ...CHALLENGE_MODE_TEAM };
   }
 
   if (next.gameState === 'victory') next.gameState = 'playing';
+  if (next.gameState === 'challenge_victory') next.gameState = 'playing';
 
   const nextStats = { ...(next.stats || {}) };
   if (nextStats.injuryRisk === undefined) nextStats.injuryRisk = 0;
@@ -914,9 +937,10 @@ function hydrateLoadedState(raw) {
     next.specialMechanicState.milanLegendsUsedThisSeason = [];
   }
 
-  const shouldRebuildOpponents =
+  const shouldRebuildOpponents = next.selectedGameMode !== 'challenge' && (
     !Array.isArray(next.leagueOpponents) ||
-    (Array.isArray(next.leagueOpponents) && next.leagueOpponents.length > 0 && String(next.leagueOpponents[0]?.id || '').startsWith('opp_'));
+    (Array.isArray(next.leagueOpponents) && next.leagueOpponents.length > 0 && String(next.leagueOpponents[0]?.id || '').startsWith('opp_'))
+  );
 
   if (shouldRebuildOpponents) {
     const teamTactics = next.stats?.tactics;
@@ -925,7 +949,7 @@ function hydrateLoadedState(raw) {
     next.leagueOpponents = buildLeagueOpponents({ leagueId, playerTeamId: teamId, playerTactics: teamTactics });
   }
 
-  if (Array.isArray(next.leagueOpponents)) {
+  if (next.selectedGameMode !== 'challenge' && Array.isArray(next.leagueOpponents)) {
     next.leagueOpponents = next.leagueOpponents.map(o => {
       const baseTactics = (typeof o?.baseTactics === 'number')
         ? clampNumber(o.baseTactics, 0, 10)
@@ -937,11 +961,11 @@ function hydrateLoadedState(raw) {
     });
   }
   if (next.leagueOpponentCursor === undefined) next.leagueOpponentCursor = 0;
-  if (!Array.isArray(next.leagueSchedule) || next.leagueSchedule.length === 0) {
+  if (next.selectedGameMode !== 'challenge' && (!Array.isArray(next.leagueSchedule) || next.leagueSchedule.length === 0)) {
     const leagueId = next.currentTeam?.leagueId || 'epl';
     const teamId = next.currentTeam?.id;
     next.leagueSchedule = buildLeagueSchedule({ leagueId, playerTeamId: teamId, opponents: next.leagueOpponents });
-  } else {
+  } else if (next.selectedGameMode !== 'challenge') {
     const teamId = next.currentTeam?.id;
     if (teamId) next.leagueSchedule = enforcePlayerStrictAlternation(next.leagueSchedule, teamId, true);
   }
@@ -1559,6 +1583,341 @@ function buildGerrardLetterEvent() {
   };
 }
 
+function buildChallengeInitialState({ playerName }) {
+  const groupTable = CHALLENGE_GROUP_TEAMS.map(team => ({
+    id: team.id,
+    name: team.name,
+    tactics: team.tactics,
+    points: 0,
+    goalDiff: 0
+  }));
+
+  return {
+    ...initialState,
+    gameState: 'playing',
+    selectedGameMode: 'challenge',
+    currentTeam: { ...CHALLENGE_MODE_TEAM },
+    playerName,
+    coachingPhilosophy: '世界杯挑战',
+    stats: {
+      ...CHALLENGE_MODE_TEAM.initialStats
+    },
+    currentEvent: {
+      id: 'challenge_intro',
+      title: '世界杯挑战',
+      description: '你将率领西班牙进入世界杯挑战。先完成 4 场友谊赛，再踏入世界杯正赛。每场比赛前，你有 3 个不重复的公共决策点。',
+      options: [{ text: '开始挑战', effects: {} }]
+    },
+    challenge: {
+      phase: 'friendlies',
+      matchCounter: 0,
+      friendlyMatchesPlayed: 0,
+      friendlyHistory: [],
+      upcomingOpponent: null,
+      groupMatchIndex: 0,
+      groupTable,
+      ranking: 1,
+      groupQualified: false,
+      knockoutPathKey: null,
+      knockoutIndex: 0,
+      knockoutRounds: [],
+      complaintLetters: 0,
+      negativeNews: [],
+      results: [],
+      legendsUsed: []
+    }
+  };
+}
+
+function buildChallengeResultEvent({ title, description }) {
+  return {
+    id: 'challenge_result',
+    title,
+    description,
+    options: [{ text: '继续', effects: {} }]
+  };
+}
+
+function buildChallengeIntroForStage({ title, description }) {
+  return {
+    id: 'challenge_stage_intro',
+    title,
+    description,
+    options: [{ text: '继续', effects: {} }]
+  };
+}
+
+function buildChallengeHecklingEvent() {
+  return {
+    id: 'challenge_heckling',
+    title: '哄闹',
+    description: '训练基地里响起了不满的议论声。有人质疑你的安排，也有人开始在背后阴阳怪气。你必须立刻处理。',
+    options: [
+      { text: '强硬压制', effects: { authority: 5, dressingRoom: -10 } },
+      { text: '暂时安抚', effects: { dressingRoom: 6, authority: -5 } }
+    ]
+  };
+}
+
+function buildChallengeFlavorEvent({ title, description, effectsPreview = null }) {
+  return {
+    id: 'challenge_flavor',
+    title,
+    description,
+    effectsPreview,
+    options: [{ text: '继续', effects: {} }]
+  };
+}
+
+function getChallengeOpponentById(id) {
+  const fromGroup = CHALLENGE_GROUP_TEAMS.find(team => team.id === id);
+  if (fromGroup) return fromGroup;
+  const fromKnockout = Object.values(CHALLENGE_KNOCKOUT_PATHS).flat().find(round => round.opponent.id === id);
+  if (fromKnockout) return fromKnockout.opponent;
+  return null;
+}
+
+function applyChallengeEffects(stats, effects = {}) {
+  const nextStats = { ...(stats || {}) };
+  Object.entries(effects).forEach(([key, raw]) => {
+    const value = typeof raw === 'number' ? raw : 0;
+    if (nextStats[key] === undefined) return;
+    nextStats[key] += value;
+    if (['dressingRoom', 'authority', 'mediaSupport'].includes(key)) {
+      nextStats[key] = clampNumber(nextStats[key], 0, 100);
+    } else if (key === 'fatigue') {
+      nextStats[key] = Math.max(0, clampNumber(nextStats[key], 0, 100));
+    } else if (key === 'tactics') {
+      nextStats[key] = clampNumber(nextStats[key], 0, 10);
+    } else if (key === 'points') {
+      nextStats[key] = Math.max(0, nextStats[key]);
+    } else if (key === 'negativeNews') {
+      nextStats[key] = nextStats[key];
+    }
+  });
+  return nextStats;
+}
+
+function getChallengeRanking(groupTable, playerId) {
+  const sorted = (Array.isArray(groupTable) ? groupTable.slice() : []).sort((a, b) => {
+    if ((b.points || 0) !== (a.points || 0)) return (b.points || 0) - (a.points || 0);
+    if ((b.goalDiff || 0) !== (a.goalDiff || 0)) return (b.goalDiff || 0) - (a.goalDiff || 0);
+    return (b.tactics || 0) - (a.tactics || 0);
+  });
+  const idx = sorted.findIndex(team => team.id === playerId);
+  return idx >= 0 ? idx + 1 : 1;
+}
+
+function applyChallengeMatchOutcome({ state, opponent, result, matchType, stageLabel }) {
+  const next = {
+    ...state,
+    stats: { ...(state.stats || {}) },
+    challenge: {
+      ...(state.challenge || {}),
+      groupTable: Array.isArray(state.challenge?.groupTable) ? state.challenge.groupTable.map(team => ({ ...team })) : [],
+      negativeNews: Array.isArray(state.challenge?.negativeNews) ? state.challenge.negativeNews.map(item => ({ ...item })) : [],
+      friendlyHistory: Array.isArray(state.challenge?.friendlyHistory) ? state.challenge.friendlyHistory.slice() : [],
+      results: Array.isArray(state.challenge?.results) ? state.challenge.results.slice() : []
+    }
+  };
+
+  const stats = next.stats;
+  const challenge = next.challenge;
+  const playerId = state.currentTeam?.id;
+  const playerWon = result === 'W';
+  const playerLost = result === 'L';
+  const isOfficial = matchType !== 'friendly';
+
+  const fatiguePenalty = Math.min(2.4, (stats.fatigue || 0) / 18);
+  const recruitmentPenalty = matchType === 'friendly' && (stats.authority || 0) < 40 ? 0.7 : 0;
+  const moraleBuff = (stats.dressingRoom || 0) >= 80 ? 0.45 : 0;
+  const cheerBuff = (stats.mediaSupport || 0) >= 80 ? 0.25 : 0;
+  const hugeMistake = (stats.fatigue || 0) > 30 && Math.random() < 0.28 ? 1.2 : 0;
+
+  const effectivePlayer = clampNumber((stats.tactics || 0) + moraleBuff + cheerBuff - fatiguePenalty - recruitmentPenalty - hugeMistake, 0, 10);
+  const effectiveOpponent = clampNumber((opponent?.tactics || 0) + (Math.random() < 0.5 ? 0 : 0.25), 0, 10);
+
+  let finalResult = result;
+  if (matchType === 'knockout' && result === 'D') {
+    if (effectivePlayer > effectiveOpponent) finalResult = 'W';
+    else if (effectivePlayer < effectiveOpponent) finalResult = 'L';
+    else finalResult = (stats.authority || 0) >= 60 ? 'W' : 'L';
+  }
+
+  stats.fatigue = clampNumber((stats.fatigue || 0) + 5, 0, 100);
+  if (finalResult === 'W') stats.authority = clampNumber((stats.authority || 0) + 5, 0, 100);
+  if (finalResult === 'L') stats.authority = clampNumber((stats.authority || 0) - 5, 0, 100);
+
+  challenge.negativeNews = challenge.negativeNews
+    .map(item => ({ ...item, remaining: (item.remaining || 0) - 1 }))
+    .filter(item => (item.remaining || 0) > 0);
+
+  if (challenge.negativeNews.length > 0) {
+    stats.mediaSupport = clampNumber((stats.mediaSupport || 0) - (challenge.negativeNews.length * 3), 0, 100);
+  }
+
+  if (stats.dressingRoom < 40) {
+    stats.authority = clampNumber((stats.authority || 0) - 5, 0, 100);
+    stats.dressingRoom = clampNumber((stats.dressingRoom || 0) - 5, 0, 100);
+  }
+
+  if (stats.mediaSupport >= 80) {
+    stats.dressingRoom = clampNumber((stats.dressingRoom || 0) + 5, 0, 100);
+    stats.authority = clampNumber((stats.authority || 0) + 5, 0, 100);
+  }
+
+  if (playerLost && stats.mediaSupport < 40) {
+    const drop = matchType === 'friendly' ? 5 : 10;
+    stats.mediaSupport = clampNumber((stats.mediaSupport || 0) - drop, 0, 100);
+  }
+
+  if ((stats.authority || 0) > 80) {
+    challenge.complaintLetters = (challenge.complaintLetters || 0) + 1;
+    if (Math.random() < 0.5) stats.dressingRoom = clampNumber((stats.dressingRoom || 0) - 10, 0, 100);
+    else stats.mediaSupport = clampNumber((stats.mediaSupport || 0) - 10, 0, 100);
+  }
+
+  if (isOfficial && finalResult === 'L' && !challenge.groupQualified) {
+    challenge.negativeNews.push({ id: `news_${Date.now()}_${Math.random()}`, remaining: 3 });
+  }
+
+  const playerLine = {
+    opponentId: opponent.id,
+    opponentName: opponent.name,
+    type: matchType,
+    stageLabel,
+    result: finalResult
+  };
+  challenge.results.push(playerLine);
+
+  if (matchType === 'friendly') {
+    challenge.friendlyMatchesPlayed = (challenge.friendlyMatchesPlayed || 0) + 1;
+    challenge.friendlyHistory.push(playerLine);
+    challenge.upcomingOpponent = null;
+    if (challenge.friendlyMatchesPlayed >= 4) {
+      challenge.phase = 'group';
+      next.currentEvent = buildChallengeIntroForStage({
+        title: '世界杯小组赛',
+        description: '四场友谊赛结束，世界杯小组赛正式开始。你将依次面对哥斯达黎加、德国、日本。'
+      });
+    } else {
+      next.currentEvent = buildChallengeResultEvent({
+        title: `友谊赛${finalResult === 'W' ? '获胜' : finalResult === 'L' ? '失利' : '战平'}`,
+        description: `你与${opponent.name}完成了一场友谊赛。结果：${finalResult === 'W' ? '胜' : finalResult === 'L' ? '负' : '平'}。`
+      });
+    }
+  } else if (matchType === 'group') {
+    const fixture = CHALLENGE_GROUP_FIXTURES[challenge.groupMatchIndex || 0];
+    const playerEntry = challenge.groupTable.find(team => team.id === playerId);
+    const otherHome = challenge.groupTable.find(team => team.id === fixture.otherFixture.homeId);
+    const otherAway = challenge.groupTable.find(team => team.id === fixture.otherFixture.awayId);
+    const otherResult = sampleMatchPoints(otherHome?.tactics || 0, otherAway?.tactics || 0);
+
+    if (playerEntry) {
+      if (finalResult === 'W') {
+        playerEntry.points += 3;
+        playerEntry.goalDiff += 1;
+        stats.points = (stats.points || 0) + 3;
+      } else if (finalResult === 'D') {
+        playerEntry.points += 1;
+        stats.points = (stats.points || 0) + 1;
+      } else {
+        playerEntry.goalDiff -= 1;
+      }
+    }
+
+    if (otherHome && otherAway) {
+      otherHome.points += otherResult.homePoints;
+      otherAway.points += otherResult.awayPoints;
+      if (otherResult.homePoints > otherResult.awayPoints) {
+        otherHome.goalDiff += 1;
+        otherAway.goalDiff -= 1;
+      } else if (otherResult.homePoints < otherResult.awayPoints) {
+        otherHome.goalDiff -= 1;
+        otherAway.goalDiff += 1;
+      }
+    }
+
+    challenge.groupMatchIndex = (challenge.groupMatchIndex || 0) + 1;
+    challenge.ranking = getChallengeRanking(challenge.groupTable, playerId);
+    challenge.upcomingOpponent = null;
+
+    if (challenge.groupMatchIndex >= CHALLENGE_GROUP_FIXTURES.length) {
+      const finalRank = getChallengeRanking(challenge.groupTable, playerId);
+      challenge.ranking = finalRank;
+      if (finalRank <= 2) {
+        challenge.groupQualified = true;
+        challenge.phase = 'knockout';
+        challenge.knockoutPathKey = finalRank === 1 ? 'first' : 'second';
+        challenge.knockoutRounds = CHALLENGE_KNOCKOUT_PATHS[challenge.knockoutPathKey].map(round => ({ ...round, opponent: { ...round.opponent } }));
+        challenge.knockoutIndex = 0;
+        next.currentEvent = buildChallengeIntroForStage({
+          title: '小组出线',
+          description: `你以第${finalRank}名完成小组赛，成功出线。淘汰赛即将开始。`
+        });
+      } else {
+        next.gameState = 'gameover';
+        next.gameoverOverrideText = `西班牙在小组赛中仅列第${finalRank}，世界杯之旅戛然而止。`;
+        next.currentEvent = buildChallengeResultEvent({
+          title: '小组赛结束',
+          description: `你没能带领西班牙从小组出线。最终排名：第${finalRank}。`
+        });
+      }
+    } else {
+      next.currentEvent = buildChallengeResultEvent({
+        title: `小组赛${finalResult === 'W' ? '获胜' : finalResult === 'L' ? '失利' : '战平'}`,
+        description: `西班牙对阵${opponent.name}的比赛结果为：${finalResult === 'W' ? '胜' : finalResult === 'L' ? '负' : '平'}。目前小组排名第${challenge.ranking}。`
+      });
+    }
+  } else if (matchType === 'knockout') {
+    challenge.upcomingOpponent = null;
+    if (finalResult === 'W') {
+      challenge.knockoutIndex = (challenge.knockoutIndex || 0) + 1;
+      if (challenge.knockoutIndex >= (challenge.knockoutRounds || []).length) {
+        next.gameState = 'challenge_victory';
+        next.currentEvent = buildChallengeResultEvent({
+          title: '世界杯冠军',
+          description: `你带领西班牙击败${opponent.name}，赢得了世界杯冠军。`
+        });
+      } else {
+        next.currentEvent = buildChallengeResultEvent({
+          title: `${stageLabel}晋级`,
+          description: `西班牙击败${opponent.name}，继续朝世界杯冠军前进。`
+        });
+      }
+    } else {
+      next.gameState = 'gameover';
+      next.gameoverOverrideText = `西班牙在${stageLabel}被${opponent.name}淘汰。`;
+      next.currentEvent = buildChallengeResultEvent({
+        title: `${stageLabel}出局`,
+        description: `西班牙没能跨过${opponent.name}这一关，世界杯征程结束了。`
+      });
+    }
+  }
+
+  challenge.matchCounter = (challenge.matchCounter || 0) + 1;
+  next.decisionPoints = 3;
+  next.decisionCountThisMonth = 0;
+  next.activeDecisionsTaken = [];
+
+  if (stats.dressingRoom <= 0 || stats.mediaSupport <= 0) {
+    next.gameState = 'gameover';
+  }
+
+  if (next.gameState === 'playing' && ((stats.dressingRoom < 60) || (stats.authority < 60)) && Math.random() < 0.35) {
+    next.currentEvent = buildChallengeHecklingEvent();
+  }
+
+  if (next.gameState === 'playing' && !next.currentEvent) {
+    next.currentEvent = buildChallengeResultEvent({
+      title: '比赛结束',
+      description: `${stageLabel}已经结束。`
+    });
+  }
+
+  return next;
+}
+
 function _buildTabloidStalkingIntroEvent() {
   return {
     id: 'tabloid_stalking_intro',
@@ -1675,6 +2034,12 @@ function appendEventToTail(baseEvent, tailEvent) {
 
 function gameReducer(state, action) {
   switch (action.type) {
+    case 'START_CHALLENGE_GAME': {
+      const playerName = String(action.payload?.playerName || '').trim();
+      if (!playerName) return state;
+      return buildChallengeInitialState({ playerName });
+    }
+
     case 'SET_GAME_STATE':
       return {
         ...state,
@@ -1816,6 +2181,7 @@ function gameReducer(state, action) {
       let nextStartState = {
         ...initialState,
         gameState: 'playing',
+        selectedGameMode: 'regular',
         currentTeam: team,
         playerName: action.payload.playerName,
         coachingPhilosophy: action.payload.coachingPhilosophy,
@@ -1906,6 +2272,134 @@ function gameReducer(state, action) {
       return nextStartState;
     }
 
+    case 'CHALLENGE_SELECT_FRIENDLY_OPPONENT': {
+      if (state.selectedGameMode !== 'challenge') return state;
+      const opponent = action.payload?.opponent;
+      if (!opponent) return state;
+      return {
+        ...state,
+        challenge: {
+          ...(state.challenge || {}),
+          upcomingOpponent: { ...opponent }
+        },
+        decisionPoints: 3,
+        decisionCountThisMonth: 0,
+        activeDecisionsTaken: []
+      };
+    }
+
+    case 'TAKE_CHALLENGE_DECISION': {
+      if (state.selectedGameMode !== 'challenge') return state;
+      const decision = CHALLENGE_MODE_DECISIONS.find(item => item.id === action.payload?.decisionId);
+      if (!decision) return state;
+      if ((state.activeDecisionsTaken || []).includes(decision.type)) return state;
+      if ((state.decisionCountThisMonth || 0) >= 3) return state;
+      if (decision.onlyBeforeOfficial && state.challenge?.phase !== 'friendlies') return state;
+
+      let nextStats = applyChallengeEffects(state.stats, decision.effects);
+      let nextChallenge = {
+        ...(state.challenge || {}),
+        negativeNews: Array.isArray(state.challenge?.negativeNews) ? state.challenge.negativeNews.map(item => ({ ...item })) : [],
+        legendsUsed: Array.isArray(state.challenge?.legendsUsed) ? state.challenge.legendsUsed.slice() : []
+      };
+      let flavorText = decision.description;
+      let effectsPreview = decision.effects;
+
+      if ((decision.effects?.negativeNews || 0) > 0) {
+        for (let i = 0; i < (decision.effects.negativeNews || 0); i += 1) {
+          nextChallenge.negativeNews.push({ id: `manual_news_${Date.now()}_${i}_${Math.random()}`, remaining: 3 });
+        }
+      }
+
+      if (decision.special === 'legend_speech') {
+        const used = new Set(nextChallenge.legendsUsed || []);
+        const available = CHALLENGE_LEGENDS.filter(legend => !used.has(legend.id));
+        if (available.length === 0) return state;
+        const picked = available[Math.floor(Math.random() * available.length)];
+        nextChallenge.legendsUsed = [...(nextChallenge.legendsUsed || []), picked.id];
+        nextStats = applyChallengeEffects(nextStats, picked.effects);
+        effectsPreview = picked.effects;
+        flavorText = `${picked.name}来到了训练基地，为全队做了一次演讲。有人听得热血沸腾，也有人只是默默点头，但队伍确实发生了一点变化。`;
+      }
+
+      return {
+        ...state,
+        stats: nextStats,
+        challenge: nextChallenge,
+        decisionPoints: Math.max(0, (state.decisionPoints || 0) - 1),
+        decisionCountThisMonth: (state.decisionCountThisMonth || 0) + 1,
+        activeDecisionsTaken: [...(state.activeDecisionsTaken || []), decision.type],
+        currentEvent: buildChallengeFlavorEvent({
+          title: decision.title,
+          description: flavorText,
+          effectsPreview
+        })
+      };
+    }
+
+    case 'PLAY_CHALLENGE_MATCH': {
+      if (state.selectedGameMode !== 'challenge') return state;
+      if ((state.decisionCountThisMonth || 0) < 3) return state;
+
+      let opponent = state.challenge?.upcomingOpponent || null;
+      let matchType = 'friendly';
+      let stageLabel = '友谊赛';
+
+      if (state.challenge?.phase === 'group') {
+        const fixture = CHALLENGE_GROUP_FIXTURES[state.challenge.groupMatchIndex || 0];
+        opponent = fixture ? getChallengeOpponentById(fixture.opponentId) : null;
+        matchType = 'group';
+        stageLabel = `小组赛第${(state.challenge?.groupMatchIndex || 0) + 1}轮`;
+      } else if (state.challenge?.phase === 'knockout') {
+        const round = state.challenge?.knockoutRounds?.[state.challenge?.knockoutIndex || 0];
+        opponent = round?.opponent || null;
+        matchType = 'knockout';
+        stageLabel = round?.label || '淘汰赛';
+      }
+
+      if (!opponent) return state;
+
+      const fatiguePenalty = Math.min(2.4, (state.stats?.fatigue || 0) / 18);
+      const recruitmentPenalty = matchType === 'friendly' && (state.stats?.authority || 0) < 40 ? 0.7 : 0;
+      const moraleBuff = (state.stats?.dressingRoom || 0) >= 80 ? 0.45 : 0;
+      const hugeMistake = (state.stats?.fatigue || 0) > 30 && Math.random() < 0.28 ? 1.2 : 0;
+      const playerStrength = clampNumber((state.stats?.tactics || 0) + moraleBuff - fatiguePenalty - recruitmentPenalty - hugeMistake, 0, 10);
+      const opponentStrength = clampNumber(opponent.tactics || 0, 0, 10);
+
+      let result = 'D';
+      if (matchType === 'knockout') {
+        if (playerStrength > opponentStrength) result = 'W';
+        else if (playerStrength < opponentStrength) result = 'L';
+        else result = 'D';
+      } else {
+        const sampled = sampleMatchPoints(playerStrength, opponentStrength);
+        if (sampled.homePoints > sampled.awayPoints) result = 'W';
+        else if (sampled.homePoints < sampled.awayPoints) result = 'L';
+        else result = 'D';
+      }
+
+      return applyChallengeMatchOutcome({ state, opponent, result, matchType, stageLabel });
+    }
+
+    case 'RESOLVE_CHALLENGE_EVENT': {
+      if (state.selectedGameMode !== 'challenge') return state;
+      const currentEvent = state.currentEvent;
+      if (!currentEvent) return state;
+
+      const statsAfter = applyChallengeEffects(state.stats, action.payload?.effects || {});
+      const next = {
+        ...state,
+        stats: statsAfter,
+        currentEvent: null
+      };
+
+      if (statsAfter.dressingRoom <= 0 || statsAfter.mediaSupport <= 0) {
+        next.gameState = 'gameover';
+      }
+
+      return next;
+    }
+
     case 'OPEN_GERRARD_LETTER':
         return {
             ...state,
@@ -1950,7 +2444,9 @@ function gameReducer(state, action) {
         const next = hydrateLoadedState(action.payload);
         if (next) {
             let loaded = next;
-            const team = teamsData.find(t => t.id === loaded.currentTeam.id);
+            const team = loaded.selectedGameMode === 'regular' && loaded.currentTeam?.id
+              ? teamsData.find(t => t.id === loaded.currentTeam.id)
+              : null;
             if (team) {
                 const leagueId = team.leagueId || 'epl';
                 const leagueOpponents = buildLeagueOpponents({ leagueId, playerTeamId: team.id, playerTactics: loaded.stats.tactics });
