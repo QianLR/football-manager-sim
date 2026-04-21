@@ -5,7 +5,6 @@ const AUTO_SAVE_KEY = 'gsm_save_auto_latest';
 const MANUAL_SAVE_KEY_PREFIX = 'gsm_save_manual_';
 const MANUAL_SLOTS_KEY = 'gsm_save_manual_slots_v2';
 const GLOBAL_ACHIEVEMENTS_KEY = 'gsm_achievements_global_v1';
-const POST_MIGRATION_APOLOGY_KEY = 'gsm_post_migration_apology_pending_v1';
 
 const SAVE_EXPORT_VERSION = 1;
 
@@ -389,7 +388,6 @@ export default function SaveModal({ open, onClose, canSave }) {
 
                     try {
                       writeImportPayload(parsed);
-                      localStorage.setItem(POST_MIGRATION_APOLOGY_KEY, '1');
                       setImportOk('导入成功：即将刷新页面');
                       setConfirmImport(false);
                       setTimeout(() => window.location.reload(), 300);

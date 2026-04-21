@@ -11,9 +11,9 @@ import YouthAcademyModal from './components/YouthAcademyModal';
 import ChallengeDashboard from './components/ChallengeDashboard';
 import ChallengeEventCard from './components/ChallengeEventCard';
 import { ACHIEVEMENTS } from './data/achievements';
-import { readGlobalAchievements } from './data/achievementsStorage';
+import { readGlobalAchievements, writeGlobalAchievements } from './data/achievementsStorage';
 
-const POST_MIGRATION_APOLOGY_KEY = 'gsm_post_migration_apology_pending_v1';
+const SAVE_ISSUE_APOLOGY_DISMISSED_KEY = 'gsm_save_issue_apology_dismissed_v4';
 
 function OnboardingOverlay({ stepIndex, steps, onNext, onPrev, onSkip, onFinish, finishText }) {
   const step = Array.isArray(steps) ? steps[stepIndex] : null;
@@ -323,6 +323,17 @@ function App() {
     };
   }, []);
 
+  const saveIssueApologyContext = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return { shouldShow: false, dismissKey: SAVE_ISSUE_APOLOGY_DISMISSED_KEY };
+    }
+
+    return {
+      shouldShow: true,
+      dismissKey: SAVE_ISSUE_APOLOGY_DISMISSED_KEY
+    };
+  }, []);
+
   useEffect(() => {
     if (!currentToast) return;
     const t = setTimeout(() => {
@@ -363,17 +374,16 @@ function App() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (!saveIssueApologyContext.shouldShow) return;
 
     try {
-      const pending = window.localStorage.getItem(POST_MIGRATION_APOLOGY_KEY);
-      if (pending === '1') {
-        setShowPostMigrationApology(true);
-        window.localStorage.removeItem(POST_MIGRATION_APOLOGY_KEY);
-      }
+      const dismissed = window.localStorage.getItem(saveIssueApologyContext.dismissKey);
+      if (dismissed === '1') return;
+      setShowPostMigrationApology(true);
     } catch {
       // ignore
     }
-  }, []);
+  }, [saveIssueApologyContext]);
 
   useEffect(() => {
     const prevGameState = prevGameStateRef.current;
@@ -403,6 +413,30 @@ function App() {
       }
     }
     setShowMigrationNotice(false);
+  };
+
+  const dismissSaveIssueApology = () => {
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(saveIssueApologyContext.dismissKey, '1');
+      } catch {
+        // ignore
+      }
+    }
+    setShowPostMigrationApology(false);
+  };
+
+  const unlockAllLegacyAchievements = () => {
+    const now = new Date().toISOString();
+    const next = {};
+
+    ACHIEVEMENTS.forEach(({ id }) => {
+      next[id] = globalAchievements?.[id] || { unlockedAt: now };
+    });
+
+    writeGlobalAchievements(next);
+    setGlobalAchievements(next);
+    dismissSaveIssueApology();
   };
 
   const migrationNoticeModal = showMigrationNotice && migrationNoticeContext.shouldShow ? (
@@ -488,13 +522,13 @@ function App() {
     </div>
   ) : null;
 
-  const postMigrationApologyModal = showPostMigrationApology ? (
+  const postMigrationApologyModal = showPostMigrationApology && !showMigrationNotice ? (
     <div className="fixed inset-0 z-[1250] flex items-center justify-center p-3 bg-black/40">
       <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-lg w-full p-3">
         <div className="flex items-center justify-between mb-2">
-          <div className="font-bold text-sm font-mono">迁移完成后的说明</div>
+          <div className="font-bold text-sm font-mono">关于存档异常的致歉</div>
           <button
-            onClick={() => setShowPostMigrationApology(false)}
+            onClick={dismissSaveIssueApology}
             className="retro-btn text-xs py-1 px-2"
           >
             关闭
@@ -502,17 +536,19 @@ function App() {
         </div>
         <div className="text-xs font-mono text-black leading-relaxed space-y-2">
           <p>
-            很抱歉，之前的版本更新导致部分用户在部分设备上出现旧存档不显示的问题，给你带来了麻烦。
-          </p>
-          <p>
-            你刚刚完成的是跨站迁移导入，原有存档和全局成就现在已经一起写入当前站点。
-            如果之后仍有异常，可以再通过“存档入口”重新导入一次备份文本。
+            很抱歉，之前的版本更新导致部分用户在部分设备上出现旧存档不显示的问题；旧存档无法恢复，但成就可以一键点亮。如果你希望一键点亮所有旧成就，请点击：【一键点亮所有旧成就】
           </p>
         </div>
-        <div className="mt-3 flex justify-end">
+        <div className="mt-3 flex justify-end gap-2">
           <button
-            onClick={() => setShowPostMigrationApology(false)}
+            onClick={unlockAllLegacyAchievements}
             className="retro-btn-primary text-xs py-1 px-2"
+          >
+            一键点亮所有旧成就
+          </button>
+          <button
+            onClick={dismissSaveIssueApology}
+            className="retro-btn text-xs py-1 px-2"
           >
             我知道了
           </button>
