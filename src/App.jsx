@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from './context/GameContextInstance';
 import Dashboard from './components/Dashboard';
 import EventCard from './components/EventCard';
@@ -24,21 +24,102 @@ function OnboardingOverlay({ stepIndex, steps, onNext, onPrev, onSkip, onFinish,
   const [spotRects, setSpotRects] = useState([]);
   const [anchorRect, setAnchorRect] = useState(null);
   const panelRef = useRef(null);
-  const [panelStyle, setPanelStyle] = useState({ right: 12, bottom: 12 });
+  const [panelStyle, setPanelStyle] = useState({ right: 12, bottom: 12, maxHeight: 'calc(100dvh - 24px)' });
 
-  useEffect(() => {
+  const measureTargets = useCallback(() => {
     if (!step) return;
-    const scheduleUpdate = (nextSpotRects, nextAnchorRect) => {
-      const id = setTimeout(() => {
-        setSpotRects(nextSpotRects);
-        setAnchorRect(nextAnchorRect);
-      }, 0);
-      return () => clearTimeout(id);
-    };
 
     const ids = Array.isArray(step.targets) ? step.targets.filter(Boolean) : [];
     if (ids.length === 0) {
-      return scheduleUpdate([], null);
+      setSpotRects([]);
+      setAnchorRect(null);
+      return;
+    }
+
+    const els = ids
+      .map(id => document.querySelector(`[data-onboard-id="${id}"]`))
+      .filter(Boolean);
+    if (els.length === 0) {
+      setSpotRects([]);
+      setAnchorRect(null);
+      return;
+    }
+
+    const viewportWidth = window.visualViewport?.width || window.innerWidth;
+    const viewportHeight = window.visualViewport?.height || window.innerHeight;
+    const padding = typeof step.padding === 'number' ? step.padding : 6;
+    const nextSpotRects = els
+      .map(el => el.getBoundingClientRect())
+      .map(r => {
+        const left = Math.max(0, r.left - padding);
+        const top = Math.max(0, r.top - padding);
+        const right = Math.min(viewportWidth, r.right + padding);
+        const bottom = Math.min(viewportHeight, r.bottom + padding);
+        return { left, top, right, bottom, width: right - left, height: bottom - top };
+      })
+      .filter(r => r.width > 0 && r.height > 0);
+
+    if (nextSpotRects.length === 0) {
+      setSpotRects([]);
+      setAnchorRect(null);
+      return;
+    }
+
+    const anchorLeft = Math.min(...nextSpotRects.map(r => r.left));
+    const anchorTop = Math.min(...nextSpotRects.map(r => r.top));
+    const anchorRight = Math.max(...nextSpotRects.map(r => r.right));
+    const anchorBottom = Math.max(...nextSpotRects.map(r => r.bottom));
+    setSpotRects(nextSpotRects);
+    setAnchorRect({
+      left: anchorLeft,
+      top: anchorTop,
+      right: anchorRight,
+      bottom: anchorBottom,
+      width: anchorRight - anchorLeft,
+      height: anchorBottom - anchorTop
+    });
+  }, [step]);
+
+  const scrollTargetIntoStableView = useCallback((target) => {
+    if (!target) return;
+
+    const findScrollParent = (node) => {
+      let current = node?.parentElement;
+      while (current && current !== document.body) {
+        const style = window.getComputedStyle(current);
+        const canScrollY = /(auto|scroll)/.test(style.overflowY) && current.scrollHeight > current.clientHeight;
+        if (canScrollY) return current;
+        current = current.parentElement;
+      }
+      return document.scrollingElement || document.documentElement;
+    };
+
+    const scroller = findScrollParent(target);
+    const targetRect = target.getBoundingClientRect();
+
+    if (scroller === document.scrollingElement || scroller === document.documentElement) {
+      try {
+        target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
+    const scrollerRect = scroller.getBoundingClientRect();
+    const targetCenter = targetRect.top + targetRect.height / 2;
+    const scrollerCenter = scrollerRect.top + scrollerRect.height / 2;
+    scroller.scrollTop += targetCenter - scrollerCenter;
+  }, []);
+
+  useEffect(() => {
+    if (!step) return;
+
+    const ids = Array.isArray(step.targets) ? step.targets.filter(Boolean) : [];
+    if (ids.length === 0) {
+      setSpotRects([]);
+      setAnchorRect(null);
+      return undefined;
     }
 
     const els = ids
@@ -46,51 +127,34 @@ function OnboardingOverlay({ stepIndex, steps, onNext, onPrev, onSkip, onFinish,
       .filter(Boolean);
 
     if (els.length === 0) {
-      return scheduleUpdate([], null);
+      setSpotRects([]);
+      setAnchorRect(null);
+      return undefined;
     }
 
-    try {
-      els[0].scrollIntoView({ block: 'center', behavior: 'auto' });
-    } catch {
-      // ignore
-    }
+    scrollTargetIntoStableView(els[0]);
 
-    const t = setTimeout(() => {
-      const rects = els.map(el => el.getBoundingClientRect());
-      const padding = typeof step.padding === 'number' ? step.padding : 6;
-      const nextSpotRects = rects
-        .map(r => {
-          const left = Math.max(0, r.left - padding);
-          const top = Math.max(0, r.top - padding);
-          const right = Math.min(window.innerWidth, r.right + padding);
-          const bottom = Math.min(window.innerHeight, r.bottom + padding);
-          return { left, top, right, bottom, width: right - left, height: bottom - top };
-        })
-        .filter(r => r.width > 0 && r.height > 0);
+    let frameOne = 0;
+    let frameTwo = 0;
+    const timers = [];
+    const scheduleMeasure = (delay = 0) => {
+      const id = setTimeout(() => {
+        frameOne = window.requestAnimationFrame(() => {
+          frameTwo = window.requestAnimationFrame(measureTargets);
+        });
+      }, delay);
+      timers.push(id);
+    };
 
-      if (nextSpotRects.length === 0) {
-        setSpotRects([]);
-        setAnchorRect(null);
-        return;
-      }
+    scheduleMeasure(0);
+    scheduleMeasure(120);
 
-      const anchorLeft = Math.min(...nextSpotRects.map(r => r.left));
-      const anchorTop = Math.min(...nextSpotRects.map(r => r.top));
-      const anchorRight = Math.max(...nextSpotRects.map(r => r.right));
-      const anchorBottom = Math.max(...nextSpotRects.map(r => r.bottom));
-      setSpotRects(nextSpotRects);
-      setAnchorRect({
-        left: anchorLeft,
-        top: anchorTop,
-        right: anchorRight,
-        bottom: anchorBottom,
-        width: anchorRight - anchorLeft,
-        height: anchorBottom - anchorTop
-      });
-    }, 0);
-
-    return () => clearTimeout(t);
-  }, [stepIndex, step?.id]);
+    return () => {
+      timers.forEach(id => clearTimeout(id));
+      if (frameOne) window.cancelAnimationFrame(frameOne);
+      if (frameTwo) window.cancelAnimationFrame(frameTwo);
+    };
+  }, [measureTargets, scrollTargetIntoStableView, step, stepIndex]);
 
   useLayoutEffect(() => {
     if (!step) return;
@@ -99,35 +163,37 @@ function OnboardingOverlay({ stepIndex, steps, onNext, onPrev, onSkip, onFinish,
     if (!el) return;
 
     const pr = el.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
+    const vw = window.visualViewport?.width || window.innerWidth;
+    const vh = window.visualViewport?.height || window.innerHeight;
     const margin = 12;
     const gap = 10;
 
     const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const panelWidth = Math.min(pr.width, Math.max(0, vw - margin * 2));
+    const panelHeight = Math.min(pr.height, Math.max(0, vh - margin * 2));
 
     if (!anchorRect) {
       const id = setTimeout(() => {
-        setPanelStyle({ right: margin, bottom: margin });
+        setPanelStyle({ right: margin, bottom: margin, maxHeight: `calc(${vh}px - ${margin * 2}px)`, overflowY: 'auto' });
       }, 0);
       return () => clearTimeout(id);
     }
 
-    const centerLeft = anchorRect.left + anchorRect.width / 2 - pr.width / 2;
-    const left = clamp(centerLeft, margin, vw - pr.width - margin);
+    const centerLeft = anchorRect.left + anchorRect.width / 2 - panelWidth / 2;
+    const left = clamp(centerLeft, margin, Math.max(margin, vw - panelWidth - margin));
 
     const belowTop = anchorRect.bottom + gap;
-    const aboveTop = anchorRect.top - gap - pr.height;
+    const aboveTop = anchorRect.top - gap - panelHeight;
 
     let top = belowTop;
-    if (belowTop + pr.height + margin > vh && aboveTop >= margin) {
+    if (belowTop + panelHeight + margin > vh && aboveTop >= margin) {
       top = aboveTop;
     } else {
-      top = clamp(belowTop, margin, vh - pr.height - margin);
+      top = clamp(belowTop, margin, Math.max(margin, vh - panelHeight - margin));
     }
 
     const id = setTimeout(() => {
-      setPanelStyle({ left, top });
+      setPanelStyle({ left, top, maxHeight: `calc(${vh}px - ${margin * 2}px)`, overflowY: 'auto' });
     }, 0);
     return () => clearTimeout(id);
   }, [anchorRect?.left, anchorRect?.top, anchorRect?.width, anchorRect?.height, stepIndex, step?.id]);
@@ -135,59 +201,24 @@ function OnboardingOverlay({ stepIndex, steps, onNext, onPrev, onSkip, onFinish,
   useEffect(() => {
     if (!step) return;
 
+    let rafId = 0;
     const handle = () => {
-      const ids = Array.isArray(step.targets) ? step.targets.filter(Boolean) : [];
-      if (ids.length === 0) {
-        setSpotRects([]);
-        setAnchorRect(null);
-        return;
-      }
-
-      const els = ids
-        .map(id => document.querySelector(`[data-onboard-id="${id}"]`))
-        .filter(Boolean);
-      if (els.length === 0) {
-        setSpotRects([]);
-        setAnchorRect(null);
-        return;
-      }
-
-      const rects = els.map(el => el.getBoundingClientRect());
-      const padding = typeof step.padding === 'number' ? step.padding : 6;
-      const nextSpotRects = rects
-        .map(r => {
-          const left = Math.max(0, r.left - padding);
-          const top = Math.max(0, r.top - padding);
-          const right = Math.min(window.innerWidth, r.right + padding);
-          const bottom = Math.min(window.innerHeight, r.bottom + padding);
-          return { left, top, right, bottom, width: right - left, height: bottom - top };
-        })
-        .filter(r => r.width > 0 && r.height > 0);
-
-      if (nextSpotRects.length === 0) {
-        setSpotRects([]);
-        setAnchorRect(null);
-        return;
-      }
-
-      const anchorLeft = Math.min(...nextSpotRects.map(r => r.left));
-      const anchorTop = Math.min(...nextSpotRects.map(r => r.top));
-      const anchorRight = Math.max(...nextSpotRects.map(r => r.right));
-      const anchorBottom = Math.max(...nextSpotRects.map(r => r.bottom));
-      setSpotRects(nextSpotRects);
-      setAnchorRect({
-        left: anchorLeft,
-        top: anchorTop,
-        right: anchorRight,
-        bottom: anchorBottom,
-        width: anchorRight - anchorLeft,
-        height: anchorBottom - anchorTop
-      });
+      if (rafId) window.cancelAnimationFrame(rafId);
+      rafId = window.requestAnimationFrame(measureTargets);
     };
 
     window.addEventListener('resize', handle);
-    return () => window.removeEventListener('resize', handle);
-  }, [step?.id]);
+    window.addEventListener('scroll', handle, true);
+    window.visualViewport?.addEventListener('resize', handle);
+    window.visualViewport?.addEventListener('scroll', handle);
+    return () => {
+      if (rafId) window.cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', handle);
+      window.removeEventListener('scroll', handle, true);
+      window.visualViewport?.removeEventListener('resize', handle);
+      window.visualViewport?.removeEventListener('scroll', handle);
+    };
+  }, [measureTargets, step?.id]);
 
   if (!step) return null;
 
@@ -1787,6 +1818,31 @@ function App() {
     );
   }
 
+  const playingTopActions = state.gameState === 'playing' ? (
+    <>
+      <button
+        onClick={() => setShowSaveModal(true)}
+        className="retro-btn text-[10px] sm:text-xs py-1 px-2"
+      >
+        存档入口
+      </button>
+      <button
+        onClick={() => state.selectedGameMode === 'challenge'
+          ? openChallengeAchievementsModal()
+          : openAchievementsModal({ title: '成就（本存档）', unlockedMap: state.achievementsUnlocked, markSeen: true })}
+        className="retro-btn text-[10px] sm:text-xs py-1 px-2"
+        aria-label="成就"
+      >
+        <span className="inline-flex items-center gap-1">
+          <span>🏆</span>
+          {(state.selectedGameMode === 'challenge' ? hasUnreadChallengeAchievements : hasUnreadAchievements) && (
+            <span className="inline-block w-2 h-2 bg-red-600 border border-black" />
+          )}
+        </span>
+      </button>
+    </>
+  ) : null;
+
   return (
     <div className="h-screen bg-[#e0e0e0] p-2 font-mono overflow-hidden">
       <AchievementToast toast={currentToast} />
@@ -1794,35 +1850,15 @@ function App() {
       {postMigrationApologyModal}
 
       <div className="max-w-6xl w-full h-full mx-auto flex flex-col gap-2 relative">
-        {state.gameState === 'playing' && (
-          <div className="absolute top-0 right-0 z-50 flex items-center gap-2">
-            <button
-              onClick={() => setShowSaveModal(true)}
-              className="retro-btn text-xs py-1 px-2"
-            >
-              存档入口
-            </button>
-            <button
-              onClick={() => state.selectedGameMode === 'challenge'
-                ? openChallengeAchievementsModal()
-                : openAchievementsModal({ title: '成就（本存档）', unlockedMap: state.achievementsUnlocked, markSeen: true })}
-              className="retro-btn text-xs py-1 px-2"
-            >
-              <span className="inline-flex items-center gap-1">
-                <span>🏆</span>
-                {(state.selectedGameMode === 'challenge' ? hasUnreadChallengeAchievements : hasUnreadAchievements) && (
-                  <span className="inline-block w-2 h-2 bg-red-600 border border-black" />
-                )}
-              </span>
-            </button>
-          </div>
-        )}
-        <div className={`space-y-2 overflow-auto ${state.gameState === 'playing' ? 'pt-16 sm:pt-14' : ''}`}>
+        <div className="space-y-2 overflow-auto">
           {state.selectedGameMode === 'challenge' ? (
-            <ChallengeDashboard />
+            <ChallengeDashboard topActions={playingTopActions} />
           ) : (
             <>
-              <Dashboard onOpenYouthAcademy={() => setShowYouthAcademyModal(true)} />
+              <Dashboard
+                onOpenYouthAcademy={() => setShowYouthAcademyModal(true)}
+                topActions={playingTopActions}
+              />
               <BuffPool />
             </>
           )}

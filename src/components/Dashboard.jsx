@@ -22,7 +22,7 @@ const StatBar = ({ label, value, max = 100, showBar = true }) => {
   );
 };
 
-const Dashboard = ({ onOpenYouthAcademy }) => {
+const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
   const { state } = useGame();
   const { stats, currentTeam, month, quarter, year, tabloidCount, playerName, estimatedRanking, specialMechanicState } = state;
 
@@ -148,7 +148,7 @@ const Dashboard = ({ onOpenYouthAcademy }) => {
         </div>
       )}
 
-      <div className="flex justify-between items-center mb-2 border-b-2 border-black pb-1">
+      <div className="flex justify-between items-start gap-2 mb-2 border-b-2 border-black pb-1">
         <div>
           <h2 className="text-base font-bold font-mono uppercase">{currentTeam.name} | 教练：{playerName}</h2>
           <div className="mt-1">
@@ -161,12 +161,19 @@ const Dashboard = ({ onOpenYouthAcademy }) => {
             </button>
           </div>
         </div>
-        <div className="text-xs font-mono text-right pr-14 mt-6">
-          <div>第{year}年 第{quarter}季度 第{month}个月</div>
-          <div data-onboard-id="expectation">期望: {expectationText}</div>
-          {isRoofClosed && (
-            <div className="text-[11px] text-gray-800 font-mono">🏟️顶棚关闭</div>
-          )}
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {topActions ? (
+            <div className="flex items-center gap-1">
+              {topActions}
+            </div>
+          ) : null}
+          <div className="text-[10px] sm:text-xs font-mono text-right leading-tight">
+            <div>第{year}年 第{quarter}季度 第{month}个月</div>
+            <div data-onboard-id="expectation">期望: {expectationText}</div>
+            {isRoofClosed && (
+              <div className="text-[11px] text-gray-800 font-mono">🏟️顶棚关闭</div>
+            )}
+          </div>
         </div>
       </div>
 

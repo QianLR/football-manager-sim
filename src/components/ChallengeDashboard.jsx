@@ -176,7 +176,7 @@ function getScheduleEntries(challenge) {
   return [{ id: 'empty', text: '未安排赛程', type: 'empty' }];
 }
 
-export default function ChallengeDashboard() {
+export default function ChallengeDashboard({ topActions = null }) {
   const { state } = useGame();
   const { currentTeam, playerName, stats, challenge } = state;
   const [showTable, setShowTable] = useState(false);
@@ -448,19 +448,26 @@ export default function ChallengeDashboard() {
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-2 pr-32 sm:pr-28 md:pr-20 lg:pr-0 sm:flex-row sm:justify-between sm:items-start mb-2 border-b-2 border-black pb-1">
-        <div className="min-w-0">
+      <div className="mb-2 border-b-2 border-black pb-1">
+        <div className="flex items-start justify-between gap-2">
           <h2 className="text-base font-bold font-mono uppercase">{currentTeam.name} | 主帅：{playerName}</h2>
-          <div className="mt-1 flex gap-2">
+          {topActions ? (
+            <div className="flex shrink-0 items-center gap-1">
+              {topActions}
+            </div>
+          ) : null}
+        </div>
+        <div className="mt-1 flex items-start justify-between gap-2">
+          <div className="flex gap-2">
             <button onClick={() => setShowTable(true)} className="retro-btn text-[11px] py-1 px-2" data-onboard-id="challenge_schedule_button">
               查看赛程
             </button>
           </div>
-        </div>
-        <div className="self-start sm:self-auto sm:mr-16 md:mr-12 lg:mr-0 text-xs font-mono text-left sm:text-right border border-black bg-gray-50 px-2 py-1">
-          <div>{phaseText(challenge)}</div>
-          <div>{challenge?.matchCounter || 0} 场比赛</div>
-          {opponent ? <div>下场：{opponent.name}</div> : null}
+          <div className="shrink-0 max-w-[12rem] text-[10px] sm:text-xs font-mono text-right leading-tight border border-black bg-gray-50 px-2 py-1">
+            <div>{phaseText(challenge)}</div>
+            <div>{challenge?.matchCounter || 0} 场比赛</div>
+            {opponent ? <div>下场：{opponent.name}</div> : null}
+          </div>
         </div>
       </div>
 
