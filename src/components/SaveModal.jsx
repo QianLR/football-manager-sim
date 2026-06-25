@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useGame } from '../context/GameContextInstance';
+import {
+  CHALLENGE_GROUP_FIXTURES,
+  CHALLENGE_GROUP_TEAMS
+} from '../data/challengeMode';
 
 const AUTO_SAVE_KEY = 'gsm_save_auto_latest';
 const MANUAL_SAVE_KEY_PREFIX = 'gsm_save_manual_';
@@ -44,6 +48,44 @@ function formatSavedAt(savedAt) {
   } catch {
     return savedAt;
   }
+}
+
+function formatChallengeRoundLabel(label) {
+  if (!label) return '世界杯挑战';
+  return String(label)
+    .replace('世界杯三十二强', '世界杯32强')
+    .replace('世界杯十六强', '世界杯16强')
+    .replace('世界杯八强', '世界杯8强')
+    .replace('世界杯四强', '世界杯4强');
+}
+
+function deriveChallengeScheduleLabel(saveData) {
+  const savedState = saveData?.state || {};
+  const challenge = savedState.challenge || {};
+  if (challenge.phase === 'friendlies') {
+    const opponentName = challenge.upcomingOpponent?.name || '待定';
+    return `友谊赛-${opponentName}`;
+  }
+  if (challenge.phase === 'group') {
+    const fixture = CHALLENGE_GROUP_FIXTURES[challenge.groupMatchIndex || 0];
+    const opponentName = CHALLENGE_GROUP_TEAMS.find(team => team.id === fixture?.opponentId)?.name || '待定';
+    return `小组赛-${opponentName}`;
+  }
+  if (challenge.phase === 'knockout') {
+    const round = challenge.knockoutRounds?.[challenge.knockoutIndex || 0];
+    const roundLabel = formatChallengeRoundLabel(round?.label || '淘汰赛');
+    const opponentName = round?.opponent?.name;
+    return opponentName ? `${roundLabel}-${opponentName}` : roundLabel;
+  }
+  if (challenge.phase === 'complete') return '挑战完成';
+  return '世界杯挑战';
+}
+
+function formatSaveProgress(saveData) {
+  const meta = saveData?.meta || {};
+  const isChallenge = meta.selectedGameMode === 'challenge' || saveData?.state?.selectedGameMode === 'challenge';
+  if (isChallenge) return meta.challengeScheduleLabel || deriveChallengeScheduleLabel(saveData);
+  return `${meta.year ? `第${meta.year}年` : ''} ${meta.quarter ? `第${meta.quarter}季度` : ''} ${meta.month ? `第${meta.month}个月` : ''}`.trim();
 }
 
 function readManualSlotsV2() {
@@ -234,7 +276,7 @@ export default function SaveModal({ open, onClose, canSave }) {
               <div className="text-[11px] text-gray-700 font-mono leading-snug">
                 {autoSave.meta?.teamName} | 教练：{autoSave.meta?.playerName}
                 <br />
-                {autoSave.meta?.year ? `第${autoSave.meta.year}年` : ''} {autoSave.meta?.quarter ? `第${autoSave.meta.quarter}季度` : ''} {autoSave.meta?.month ? `第${autoSave.meta.month}个月` : ''}
+                {formatSaveProgress(autoSave)}
                 <br />
                 {autoSave.meta?.savedAt ? formatSavedAt(autoSave.meta.savedAt) : ''}
               </div>
@@ -425,7 +467,7 @@ export default function SaveModal({ open, onClose, canSave }) {
                   <div className="text-[11px] text-gray-700 font-mono leading-snug">
                     {data.meta?.teamName} | 教练：{data.meta?.playerName}
                     <br />
-                    {data.meta?.year ? `第${data.meta.year}年` : ''} {data.meta?.quarter ? `第${data.meta.quarter}季度` : ''} {data.meta?.month ? `第${data.meta.month}个月` : ''}
+                    {formatSaveProgress(data)}
                     <br />
                     {data.meta?.savedAt ? formatSavedAt(data.meta.savedAt) : ''}
                   </div>

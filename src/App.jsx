@@ -6,14 +6,17 @@ import BuffPool from './components/BuffPool';
 import SaveModal from './components/SaveModal';
 import teamsData from './data/teams.json';
 import AchievementsModal from './components/AchievementsModal';
+import ChallengeAchievementsModal from './components/ChallengeAchievementsModal';
 import AchievementToast from './components/AchievementToast';
 import YouthAcademyModal from './components/YouthAcademyModal';
 import ChallengeDashboard from './components/ChallengeDashboard';
 import ChallengeEventCard from './components/ChallengeEventCard';
 import { ACHIEVEMENTS } from './data/achievements';
 import { readGlobalAchievements, writeGlobalAchievements } from './data/achievementsStorage';
+import { CHALLENGE_MODE_TEAM } from './data/challengeMode';
 
 const SAVE_ISSUE_APOLOGY_DISMISSED_KEY = 'gsm_save_issue_apology_dismissed_v4';
+const CHALLENGE_ONBOARDING_SEEN_KEY = 'gsm_challenge_onboarding_seen_v1';
 
 function OnboardingOverlay({ stepIndex, steps, onNext, onPrev, onSkip, onFinish, finishText }) {
   const step = Array.isArray(steps) ? steps[stepIndex] : null;
@@ -274,6 +277,9 @@ function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingPending, setOnboardingPending] = useState(false);
+  const [showChallengeOnboarding, setShowChallengeOnboarding] = useState(false);
+  const [challengeOnboardingStep, setChallengeOnboardingStep] = useState(0);
+  const [challengeOnboardingPending, setChallengeOnboardingPending] = useState(false);
   const [showSeason2Onboarding, setShowSeason2Onboarding] = useState(false);
   const [season2OnboardingStep, setSeason2OnboardingStep] = useState(0);
   const [season2OnboardingPending, setSeason2OnboardingPending] = useState(false);
@@ -283,6 +289,7 @@ function App() {
   const [showMourinhoConfirm, setShowMourinhoConfirm] = useState(false);
   const [teamInfoId, setTeamInfoId] = useState(null);
   const [showAchievementsModal, setShowAchievementsModal] = useState(false);
+  const [showChallengeAchievementsModal, setShowChallengeAchievementsModal] = useState(false);
   const [achievementsModalTitle, setAchievementsModalTitle] = useState('成就');
   const [achievementsModalUnlockedMap, setAchievementsModalUnlockedMap] = useState(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -301,10 +308,22 @@ function App() {
     const map = state.achievementsUnlocked || {};
     return Object.keys(map).some(id => map[id] && map[id].seen === false);
   }, [state.achievementsUnlocked]);
+  const hasUnreadChallengeAchievements = useMemo(() => {
+    const map = state.challengeAchievementsUnlocked || {};
+    return Object.keys(map).some(id => map[id] && map[id].seen === false);
+  }, [state.challengeAchievementsUnlocked]);
 
   const currentToast = state.achievementToastQueue && state.achievementToastQueue.length > 0
     ? state.achievementToastQueue[0]
     : null;
+
+  const markChallengeOnboardingSeen = () => {
+    try {
+      window.localStorage.setItem(CHALLENGE_ONBOARDING_SEEN_KEY, '1');
+    } catch {
+      // ignore
+    }
+  };
 
   const migrationNoticeContext = useMemo(() => {
     if (typeof window === 'undefined') {
@@ -402,6 +421,11 @@ function App() {
     if (markSeen) {
       dispatch({ type: 'MARK_ALL_ACHIEVEMENTS_SEEN' });
     }
+  };
+
+  const openChallengeAchievementsModal = () => {
+    setShowChallengeAchievementsModal(true);
+    dispatch({ type: 'MARK_ALL_CHALLENGE_ACHIEVEMENTS_SEEN' });
   };
 
   const dismissMigrationNotice = (remember = false) => {
@@ -569,6 +593,20 @@ function App() {
     }, 0);
     return () => clearTimeout(id);
   }, [onboardingPending, showOnboarding, state.gameState, state.currentEvent]);
+
+  useEffect(() => {
+    if (!challengeOnboardingPending) return;
+    if (showChallengeOnboarding) return;
+    if (state.gameState !== 'playing') return;
+    if (state.selectedGameMode !== 'challenge') return;
+    if (state.currentEvent) return;
+    const id = setTimeout(() => {
+      setChallengeOnboardingStep(0);
+      setShowChallengeOnboarding(true);
+      setChallengeOnboardingPending(false);
+    }, 0);
+    return () => clearTimeout(id);
+  }, [challengeOnboardingPending, showChallengeOnboarding, state.gameState, state.selectedGameMode, state.currentEvent]);
 
   useEffect(() => {
     if (!season2OnboardingPending) return;
@@ -748,6 +786,88 @@ function App() {
       id: 'finish',
       targets: [],
       title: '开始执教',
+      text: '如果你准备好了，就点击开始吧。'
+    }
+  ];
+
+  const challengeOnboardingSteps = [
+    {
+      id: 'challenge_welcome',
+      targets: [],
+      title: '新手教程',
+      text: '欢迎来到豪门教练模拟器的挑战模式！这是一个简短的新手教程。如果你是第一次游玩挑战模式，强烈建议观看。'
+    },
+    {
+      id: 'challenge_schedule',
+      targets: ['challenge_schedule_button'],
+      padding: 8,
+      title: '查看赛程',
+      text: '在这里，你可以查看友谊赛、小组赛与淘汰赛的赛程。你的战绩也会被记录在这里。赢得比赛的关键是提高技战术水平、保持更衣室稳定和更高的权威。'
+    },
+    {
+      id: 'challenge_dressing_room',
+      targets: ['challenge_stat_dressing_room'],
+      title: '更衣室稳定',
+      text: '意味着更衣室的稳定程度。更高的更衣室稳定有利于球队的发挥。更衣室稳定为0时，你会下课。'
+    },
+    {
+      id: 'challenge_authority',
+      targets: ['challenge_stat_authority'],
+      title: '权威',
+      text: '意味着你在球队内的话语权。更高的权威有利于球队执行你的战术，权威过低时，你将无法执行某些强硬决策。权威为0时，你会下课。'
+    },
+    {
+      id: 'challenge_media_support',
+      targets: ['challenge_stat_media_support'],
+      title: '媒体支持',
+      text: '意味着媒体对你的支持力度。高于一定值时，你会获得加成；低于一定值时，输球会额外降低你的更衣室稳定和权威。请注意：当媒体支持为0时，继续削减该数值会导致你的权威被削减。'
+    },
+    {
+      id: 'challenge_tactics',
+      targets: ['challenge_stat_tactics'],
+      title: '技战术水平',
+      text: '这是球队的核心数值，在一定程度上决定了球队能否胜利。你可以通过决策和某些随机事件增加它。'
+    },
+    {
+      id: 'challenge_fatigue',
+      targets: ['challenge_stat_fatigue'],
+      title: '球队疲惫',
+      text: '每场比赛都会增加疲惫，一些特定的训练或随机事件也会对疲惫有影响。疲惫越高，比赛发挥越容易下滑，严重时还可能出现重大失误。'
+    },
+    {
+      id: 'challenge_points_ranking',
+      targets: ['challenge_points_ranking'],
+      title: '积分/排名',
+      text: '这里会记录你在小组赛中的积分和排名，也会记录友谊赛和淘汰赛的下一场对手。'
+    },
+    {
+      id: 'challenge_complaints',
+      targets: ['challenge_complaints'],
+      title: '投诉信',
+      text: '请注意，比赛中的某些战术可能会为你带来俱乐部主教练的投诉信。投诉信可能会降低你的媒体支持或更衣室稳定度。你可以在这里随时查看投诉信。'
+    },
+    {
+      id: 'challenge_negative_news',
+      targets: ['challenge_negative_news'],
+      title: '负面新闻',
+      text: '一些决策或事件可能会为你带来负面新闻。负面新闻会降低媒体支持的上限，但你可以通过比赛胜利压下它们。'
+    },
+    {
+      id: 'challenge_status_pool',
+      targets: ['challenge_status_pool'],
+      title: '状态池',
+      text: '这里会记录一些特殊的状态，提醒你增益与减益。超过三个状态时，可以收起状态栏。'
+    },
+    {
+      id: 'challenge_decision_pool',
+      targets: ['challenge_decision_pool'],
+      title: '决策池',
+      text: '这里是你每场比赛前可以做的决策。每场比赛前，你需要做三个决策。'
+    },
+    {
+      id: 'challenge_finish',
+      targets: [],
+      title: '开始挑战',
       text: '如果你准备好了，就点击开始吧。'
     }
   ];
@@ -979,6 +1099,31 @@ function App() {
   };
 
   const handleStartGame = (confirmedMourinho = false) => {
+    if (selectedMode === 'challenge') {
+      if (!playerName || !coachingPhilosophy || selectedTeam !== CHALLENGE_MODE_TEAM.id) return;
+
+      dispatch({
+        type: 'START_CHALLENGE_GAME',
+        payload: {
+          playerName,
+          coachingPhilosophy
+        }
+      });
+      setShowOnboarding(false);
+      setOnboardingPending(false);
+      try {
+        const seenChallengeOnboarding = window.localStorage.getItem(CHALLENGE_ONBOARDING_SEEN_KEY) === '1';
+        if (!seenChallengeOnboarding) {
+          setShowChallengeOnboarding(false);
+          setChallengeOnboardingPending(true);
+        }
+      } catch {
+        setShowChallengeOnboarding(false);
+        setChallengeOnboardingPending(true);
+      }
+      return;
+    }
+
     if (playerName && coachingPhilosophy && selectedTeam) {
       const isMourinhoArsenal = isMourinhoName(playerName) && selectedTeam === 'arsenal';
       const isMourinhoManCity = isMourinhoName(playerName) && selectedTeam === 'man_city';
@@ -1033,7 +1178,9 @@ function App() {
             <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
               <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-md w-full p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="font-bold text-sm font-mono">球队介绍</div>
+                  <div className="font-bold text-sm font-mono">
+                    {teamInfoId === CHALLENGE_MODE_TEAM.id ? '挑战介绍' : '球队介绍'}
+                  </div>
                   <button
                     onClick={() => setTeamInfoId(null)}
                     className="retro-btn text-xs py-1 px-2"
@@ -1042,10 +1189,16 @@ function App() {
                   </button>
                 </div>
                 <div className="text-xs font-mono text-black leading-relaxed whitespace-pre-wrap">
-                  {(teamsData.find(t => t.id === teamInfoId)?.name || '')}
-                  {teamInfoId === 'fc_barcelona' ? '\n（不建议新手游玩）' : ''}
-                  {'\n'}
-                  {(teamsData.find(t => t.id === teamInfoId)?.description || '')}
+                  {teamInfoId === CHALLENGE_MODE_TEAM.id ? (
+                    `西班牙男子足球国家队是本届世界杯的夺冠热门，作为教练，你自然要瞄准冠军冲刺。不过，看到你上任的新闻，所有人都为你能否调节好这支队伍中复杂的俱乐部矛盾捏了一把汗…`
+                  ) : (
+                    <>
+                      {(teamsData.find(t => t.id === teamInfoId)?.name || '')}
+                      {teamInfoId === 'fc_barcelona' ? '\n（不建议新手游玩）' : ''}
+                      {'\n'}
+                      {(teamsData.find(t => t.id === teamInfoId)?.description || '')}
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -1169,7 +1322,7 @@ function App() {
 
               <div className="mb-3">
                 <label className="block text-black text-xs font-bold mb-1 font-mono">
-                  选择球队
+                  选择挑战
                 </label>
                 <div className="space-y-2">
                   {groupedTeams.map(group => (
@@ -1245,17 +1398,74 @@ function App() {
             <div className="mb-3 border-2 border-black bg-white p-3">
               <div className="flex justify-end mb-2">
                 <button
-                  onClick={() => setSelectedMode(null)}
+                  onClick={() => {
+                    setSelectedMode(null);
+                    setSelectedTeam(null);
+                    setTeamInfoId(null);
+                  }}
                   className="retro-btn text-xs py-1 px-2"
                 >
                   返回模式选择
                 </button>
               </div>
-              <div className="font-bold text-sm font-mono mb-2">挑战模式</div>
-              <div className="text-xs font-mono text-gray-800 leading-relaxed">
-                挑战模式即将作为新项目开发。
-                <br />
-                当前版本中，原有全部俱乐部内容已收录进常规模式。
+              <div className="mb-3">
+                <label className="block text-black text-xs font-bold mb-1 font-mono">
+                  教练姓名 (限10字)
+                </label>
+                <input
+                  type="text"
+                  maxLength={10}
+                  value={playerName}
+                  onChange={(e) => setPlayerName(e.target.value)}
+                  className="appearance-none border-2 border-black w-full py-1 px-2 text-xs text-black leading-tight focus:outline-none focus:ring-2 focus:ring-black font-mono rounded-none"
+                  placeholder="请输入您的名字"
+                />
+              </div>
+              <div className="mb-3">
+                <label className="block text-black text-xs font-bold mb-1 font-mono">
+                  执教理念 (限50字)
+                </label>
+                <textarea
+                  maxLength={50}
+                  value={coachingPhilosophy}
+                  onChange={(e) => setCoachingPhilosophy(e.target.value)}
+                  className="appearance-none border-2 border-black w-full py-1 px-2 text-xs text-black leading-tight focus:outline-none focus:ring-2 focus:ring-black font-mono rounded-none"
+                  placeholder="请输入您的执教理念"
+                  rows={2}
+                />
+              </div>
+              <div className="mb-3">
+                <label className="block text-black text-xs font-bold mb-1 font-mono">
+                  选择挑战
+                </label>
+                <div className="space-y-2">
+                  <div className="border-2 border-black bg-white p-2">
+                    <div className="mt-2 space-y-2">
+                      <div
+                        onClick={() => setSelectedTeam(CHALLENGE_MODE_TEAM.id)}
+                        className={`p-2 border-2 border-black cursor-pointer transition-all font-mono ${
+                          selectedTeam === CHALLENGE_MODE_TEAM.id ? 'bg-black text-white' : 'bg-white hover:bg-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1">
+                          <div className="font-bold text-sm">🇪🇸西班牙：2026世界杯挑战</div>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setTeamInfoId(CHALLENGE_MODE_TEAM.id);
+                            }}
+                            className="inline-flex items-center justify-center w-4 h-4 border-2 border-black rounded-full text-[10px] font-bold bg-white hover:bg-gray-200 text-black"
+                            aria-label="查看挑战介绍"
+                            type="button"
+                          >
+                            ?
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1278,6 +1488,20 @@ function App() {
               }`}
             >
               开始执教
+            </button>
+          )}
+
+          {selectedMode === 'challenge' && (
+            <button
+              onClick={() => handleStartGame(false)}
+              disabled={!playerName || !coachingPhilosophy || selectedTeam !== CHALLENGE_MODE_TEAM.id}
+              className={`w-full font-bold py-2 px-3 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all font-mono text-base ${
+                playerName && coachingPhilosophy && selectedTeam === CHALLENGE_MODE_TEAM.id
+                  ? 'bg-red-600 text-white hover:bg-red-700'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              开始世界杯挑战
             </button>
           )}
 
@@ -1304,12 +1528,13 @@ function App() {
 
     if (state.selectedGameMode === 'challenge') {
       const text = state.gameoverOverrideText || `西班牙的世界杯挑战提前结束了。${state.playerName}没能撑到最后。`;
+      const title = state.gameoverOverrideTitle || '挑战失败';
       return (
         <div className="min-h-screen bg-white flex items-center justify-center p-3 text-black font-mono">
           <AchievementToast toast={currentToast} />
           {migrationNoticeModal}
           <div className="text-center max-w-xl border-4 border-black p-4 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-            <h1 className="text-2xl font-bold mb-3 uppercase tracking-tighter">挑战失败</h1>
+            <h1 className="text-2xl font-bold mb-3 uppercase tracking-tighter">{title}</h1>
             <p className="text-sm mb-4 whitespace-pre-wrap leading-relaxed">{text}</p>
             <div className="flex gap-2 justify-center">
               <button
@@ -1319,7 +1544,14 @@ function App() {
                 返回开始
               </button>
               <button
-                onClick={() => window.location.reload()}
+                onClick={() => dispatch({
+                  type: 'START_CHALLENGE_GAME',
+                  payload: {
+                    playerName: state.playerName,
+                    coachingPhilosophy: state.coachingPhilosophy,
+                    resetChallengeAchievements: true
+                  }
+                })}
                 className="bg-black text-white px-4 py-2 text-sm font-bold hover:bg-gray-800 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
               >
                 重新开始
@@ -1439,18 +1671,73 @@ function App() {
 
   if (state.gameState === 'challenge_victory') {
     const teamName = state.currentTeam?.name || '你的球队';
-    const text = `恭喜你带领${teamName}赢得世界杯冠军。四场友谊赛、三场小组赛与四场淘汰赛之后，你终于站上了世界之巅。`;
+    const coachName = state.playerName || '你';
+    const tacticName = state.coachingPhilosophy || '世界杯挑战';
+    const text = `恭喜你带领${teamName}赢得世界杯冠军。四场友谊赛、三场小组赛与五场淘汰赛之后，你终于站上了世界之巅！你的名字【${coachName}】和【${tacticName}】的战术将与这些球员们一起刻在历史的纪念碑上。挑战模式目前只是1.0版本，如果你有建议或bug反馈，欢迎联系创作者邮箱Rowaninc@163.com！`;
+    const confettiPieces = Array.from({ length: 28 }, (_, index) => index);
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-3 text-black font-mono">
+      <div className="relative min-h-screen bg-yellow-500 flex items-center justify-center p-3 text-black font-mono overflow-hidden">
+        <style>{`
+          @keyframes challenge-confetti-from-left {
+            0% { transform: translate(-80px, 40px) rotate(-18deg) scale(0.8); opacity: 0; }
+            10% { opacity: 1; }
+            100% { transform: translate(var(--x), var(--y)) rotate(var(--r)) scale(1); opacity: 0; }
+          }
+          @keyframes challenge-confetti-from-right {
+            0% { transform: translate(80px, 40px) rotate(18deg) scale(0.8); opacity: 0; }
+            10% { opacity: 1; }
+            100% { transform: translate(calc(var(--x) * -1), var(--y)) rotate(calc(var(--r) * -1)) scale(1); opacity: 0; }
+          }
+        `}</style>
         <AchievementToast toast={currentToast} />
         {migrationNoticeModal}
-        <div className="text-center max-w-xl border-4 border-black p-4 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-          <h1 className="text-2xl font-bold mb-3 uppercase tracking-tighter">世界杯冠军</h1>
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-1/2">
+          {confettiPieces.map(index => (
+            <span
+              key={`left_${index}`}
+              className="absolute block border-2 border-black"
+              style={{
+                left: `${index % 2 === 0 ? 2 : 7}%`,
+                top: `${18 + (index % 10) * 6}%`,
+                width: `${8 + (index % 3) * 4}px`,
+                height: `${6 + (index % 2) * 8}px`,
+                background: ['#ef4444', '#2563eb', '#22c55e', '#ffffff', '#facc15'][index % 5],
+                '--x': `${210 + (index % 7) * 42}px`,
+                '--y': `${-180 + (index % 11) * 38}px`,
+                '--r': `${360 + index * 37}deg`,
+                animation: `challenge-confetti-from-left ${2.1 + (index % 5) * 0.16}s ease-out ${index * 0.045}s infinite`
+              }}
+            />
+          ))}
+          <div className="absolute left-0 top-1/2 h-16 w-24 -translate-x-10 -translate-y-1/2 rotate-[-18deg] border-4 border-black bg-white shadow-[4px_4px_0_#111]" />
+        </div>
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2">
+          {confettiPieces.map(index => (
+            <span
+              key={`right_${index}`}
+              className="absolute block border-2 border-black"
+              style={{
+                right: `${index % 2 === 0 ? 2 : 7}%`,
+                top: `${18 + (index % 10) * 6}%`,
+                width: `${8 + (index % 3) * 4}px`,
+                height: `${6 + (index % 2) * 8}px`,
+                background: ['#ef4444', '#2563eb', '#22c55e', '#ffffff', '#facc15'][(index + 2) % 5],
+                '--x': `${210 + (index % 7) * 42}px`,
+                '--y': `${-180 + (index % 11) * 38}px`,
+                '--r': `${360 + index * 37}deg`,
+                animation: `challenge-confetti-from-right ${2.1 + (index % 5) * 0.16}s ease-out ${index * 0.045}s infinite`
+              }}
+            />
+          ))}
+          <div className="absolute right-0 top-1/2 h-16 w-24 translate-x-10 -translate-y-1/2 rotate-[18deg] border-4 border-black bg-white shadow-[-4px_4px_0_#111]" />
+        </div>
+        <div className="relative z-10 text-center max-w-xl border-4 border-black p-4 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <h1 className="text-3xl font-bold mb-3 uppercase tracking-tighter">大力神杯！</h1>
           <p className="text-sm mb-4 whitespace-pre-wrap leading-relaxed">{text}</p>
           <div className="flex gap-2 justify-center">
             <button
               onClick={() => dispatch({ type: 'SET_GAME_STATE', payload: { gameState: 'start' } })}
-              className="bg-white text-black px-4 py-2 text-sm font-bold hover:bg-gray-100 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+              className="bg-yellow-500 text-black px-4 py-2 text-sm font-bold hover:bg-yellow-400 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
             >
               返回开始
             </button>
@@ -1516,17 +1803,21 @@ function App() {
               存档入口
             </button>
             <button
-              onClick={() => openAchievementsModal({ title: '成就（本存档）', unlockedMap: state.achievementsUnlocked, markSeen: true })}
+              onClick={() => state.selectedGameMode === 'challenge'
+                ? openChallengeAchievementsModal()
+                : openAchievementsModal({ title: '成就（本存档）', unlockedMap: state.achievementsUnlocked, markSeen: true })}
               className="retro-btn text-xs py-1 px-2"
             >
               <span className="inline-flex items-center gap-1">
                 <span>🏆</span>
-                {hasUnreadAchievements && <span className="inline-block w-2 h-2 bg-red-600 border border-black" />}
+                {(state.selectedGameMode === 'challenge' ? hasUnreadChallengeAchievements : hasUnreadAchievements) && (
+                  <span className="inline-block w-2 h-2 bg-red-600 border border-black" />
+                )}
               </span>
             </button>
           </div>
         )}
-        <div className="space-y-2 overflow-auto">
+        <div className={`space-y-2 overflow-auto ${state.gameState === 'playing' ? 'pt-16 sm:pt-14' : ''}`}>
           {state.selectedGameMode === 'challenge' ? (
             <ChallengeDashboard />
           ) : (
@@ -1546,6 +1837,13 @@ function App() {
         title={achievementsModalTitle}
         unlockedMap={achievementsModalUnlockedMap}
         onClose={() => setShowAchievementsModal(false)}
+      />
+
+      <ChallengeAchievementsModal
+        open={showChallengeAchievementsModal && state.gameState !== 'start'}
+        unlockedMap={state.challengeAchievementsUnlocked}
+        countryName={state.currentTeam?.shortName || state.currentTeam?.name || '西班牙'}
+        onClose={() => setShowChallengeAchievementsModal(false)}
       />
 
       <SaveModal
@@ -1581,6 +1879,36 @@ function App() {
           onFinish={() => {
             setShowOnboarding(false);
             setOnboardingPending(false);
+          }}
+        />
+      )}
+
+      {showChallengeOnboarding && state.gameState === 'playing' && state.selectedGameMode === 'challenge' && (
+        <OnboardingOverlay
+          stepIndex={challengeOnboardingStep}
+          steps={challengeOnboardingSteps}
+          finishText="开始"
+          onSkip={() => {
+            markChallengeOnboardingSeen();
+            setShowChallengeOnboarding(false);
+            setChallengeOnboardingPending(false);
+          }}
+          onPrev={() => {
+            if (challengeOnboardingStep <= 0) return;
+            setChallengeOnboardingStep(challengeOnboardingStep - 1);
+          }}
+          onNext={() => {
+            if (challengeOnboardingStep >= challengeOnboardingSteps.length - 1) {
+              markChallengeOnboardingSeen();
+              setShowChallengeOnboarding(false);
+            } else {
+              setChallengeOnboardingStep(challengeOnboardingStep + 1);
+            }
+          }}
+          onFinish={() => {
+            markChallengeOnboardingSeen();
+            setShowChallengeOnboarding(false);
+            setChallengeOnboardingPending(false);
           }}
         />
       )}

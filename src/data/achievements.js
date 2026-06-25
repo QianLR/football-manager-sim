@@ -319,11 +319,43 @@ export const ACHIEVEMENTS = [
   }
 ];
 
+export const CHALLENGE_ACHIEVEMENTS = [
+  {
+    id: 'challenge_obsession',
+    title: '偏执',
+    hint: '你对自己的战术很有信心，这是一个名帅的基本素养。',
+    clue: '在一场比赛的补水时间和中场休息全都执行同一个战术。'
+  },
+  {
+    id: 'challenge_reincarnation',
+    title: '轮回',
+    hint: '你还是感到不甘心…对吗？',
+    clue: '在同一个国家的挑战模式中，曾经失败，然后再一次挑战这个国家。'
+  },
+  {
+    id: 'challenge_noise',
+    title: '喧哗',
+    hint: '让庸人说去吧，胜利属于你和你带领的【国家名】。',
+    clue: '同时拥有至少五个负面新闻。'
+  },
+  {
+    id: 'challenge_trek',
+    title: '跋涉',
+    hint: '真正的挑战从现在才开始。',
+    clue: '成功晋级，进入淘汰赛。'
+  }
+];
+
 export const ACHIEVEMENT_MAP = ACHIEVEMENTS.reduce((acc, a) => {
   acc[a.id] = a;
   return acc;
 }, {});
 
+export const CHALLENGE_ACHIEVEMENT_MAP = CHALLENGE_ACHIEVEMENTS.reduce((acc, a) => {
+  acc[a.id] = a;
+  return acc;
+}, {});
+
 export function getAchievementDef(id) {
-  return ACHIEVEMENT_MAP[id] || null;
+  return ACHIEVEMENT_MAP[id] || CHALLENGE_ACHIEVEMENT_MAP[id] || null;
 }
