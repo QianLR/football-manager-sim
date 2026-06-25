@@ -147,6 +147,62 @@ export const CHALLENGE_PREMATCH_TACTIC_GROUPS = [
 
 export const CHALLENGE_RANDOM_EVENTS = [
   {
+    id: 'instant_fa_training_inspection',
+    title: '足协视察训练',
+    description: '足协派人过来视察你们的训练。你过去迎接，惊讶地发现车上还带了两个大明星！负责人向你解释，这也是为了媒体宣传和流量。你看着周围明显频繁两倍不止的狗仔，知道今天的训练怕是不能正常进行了。为了保密，你不得不调整了训练战术，这让你的队员感到一丝迷惑。',
+    instant: true,
+    phase: 'friendly',
+    effects: { tactics: -0.5, mediaSupport: 5 }
+  },
+  {
+    id: 'instant_late_equipment_van',
+    title: '迟到的装备车',
+    description: '球队装备车在训练基地外绕了三圈，最后停在了某个不知名本地球队的青训营门口。球员们穿着混搭训练服完成了热身，场面很像临时拼起来的校队。',
+    instant: true,
+    phase: 'friendly',
+    effects: { dressingRoom: -5 }
+  },
+  {
+    id: 'instant_hotel_hallway_photos',
+    title: '酒店走廊的合影',
+    description: '球队下榻酒店外聚集了太多球迷，几名球员花了半小时合影签名。大家心情不错，但第二天训练时明显少了一点专注。',
+    instant: true,
+    phase: 'friendly',
+    effects: { mediaSupport: 5, fatigue: 3 }
+  },
+  {
+    id: 'instant_translation_headset_fault',
+    title: '翻译耳机故障',
+    description: '赛前会议上，保密用的耳机突然开始播放另一个频道的内容。你认真讲了十分钟高位逼抢，球员们听到的却是当红歌星的歌曲。',
+    instant: true,
+    phase: 'friendly',
+    effects: { authority: -5 }
+  },
+  {
+    id: 'instant_soft_training_pitch',
+    title: '训练场草皮过软',
+    description: '训练场草皮比预想中更软，球员们每次急停都像踩进一块巨大的海绵。好在没人受伤，但所有人都跑得很沉重。',
+    instant: true,
+    phase: 'friendly',
+    effects: { fatigue: 3 }
+  },
+  {
+    id: 'instant_extra_press_conference',
+    title: '突然加开的发布会',
+    description: '足协临时安排了一场发布会，理由是“世界杯前需要保持曝光”。你坐在台上回答了十二个关于首发名单的问题，其中十一个你本来不想回答。',
+    instant: true,
+    phase: 'friendly',
+    effects: { mediaSupport: 5, authority: -5 }
+  },
+  {
+    id: 'instant_missing_tactics_board',
+    title: '战术板丢失',
+    description: '你的战术板不见了。十分钟后，它出现在门将教练手里，上面已经被画满了完全看不懂的箭头。你决定假装这也是计划的一部分。',
+    instant: true,
+    phase: 'friendly',
+    effects: { tactics: -0.5 }
+  },
+  {
     id: 'locker_room_shirt',
     title: '踩脏的白色球衣',
     description: '众所周知，自从那两个人的交锋之后，每个西班牙国家队的主教练都需要处理深厚的皇萨矛盾。一天，你走进更衣室，发现一件躺在地上的白色球衣，上面全是脚印，队徽已经脏得看不清了。碰巧，队伍中为数不多的一位皇马球员也在这时进入了更衣室。他皱着眉看球衣，又看你。你需要尽快做些什么来应对这个局面…',

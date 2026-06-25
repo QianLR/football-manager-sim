@@ -1852,6 +1852,7 @@ function buildChallengeInitialState({ playerName, coachingPhilosophy, achievemen
       pendingComplaintLetter: null,
       complaintLetterHistory: [],
       pendingPostMatchEvent: null,
+      friendlyInstantEventIdsSeen: [],
       lastPostMatchEventType: null,
       capeVerdeAftermathShown: false,
       prematchTacticPromptId: null,
@@ -1888,23 +1889,31 @@ function buildChallengeIntroForStage({ title, description, nextEvent = null }) {
 
 function buildChallengePoolEvent(event, prefix = 'random') {
   if (!event) return null;
+  const isInstantEvent = Boolean(event.instant);
   return {
     id: `challenge_${prefix}_${event.id}`,
     category: event.category || 'random',
     title: event.title,
     description: event.description,
+    instant: isInstantEvent,
+    effectsPreview: isInstantEvent ? { ...(event.effects || {}) } : event.effectsPreview,
+    effectsPreviewText: isInstantEvent ? (event.effectsPreviewText || '') : event.effectsPreviewText,
     options: Array.isArray(event.options)
       ? event.options.map(option => ({
           ...option,
           effects: { ...(option?.effects || {}) },
           special: option?.special ? { ...option.special } : undefined
         }))
-      : [{ text: '继续', effects: {} }]
+      : [{ text: '继续', effects: { ...(event.effects || {}) } }]
   };
 }
 
 function buildChallengeRandomEvent(event) {
   return buildChallengePoolEvent(event, 'random');
+}
+
+function buildChallengeFriendlyInstantEvent(event) {
+  return buildChallengePoolEvent(event, 'friendly_instant');
 }
 
 function formatChallengeTemplate(text, playerName) {
@@ -2339,6 +2348,7 @@ function pickChallengePostMatchEvent(challenge) {
 
   const isEventAvailable = (event) => {
     if (!event || randomEventIdsSeen.includes(event.id)) return false;
+    if (event.instant) return false;
     const seenRequired = event.condition?.seenRandomEvent;
     if (seenRequired && !randomEventIdsSeen.includes(seenRequired)) return false;
     return true;
@@ -2357,6 +2367,25 @@ function pickChallengePostMatchEvent(challenge) {
   return {
     type: picked.category || 'random',
     event: buildChallengeRandomEvent(picked),
+    eventId: picked.id
+  };
+}
+
+function pickChallengeFriendlyInstantEvent(challenge) {
+  const friendlyInstantEventIdsSeen = Array.isArray(challenge?.friendlyInstantEventIdsSeen)
+    ? challenge.friendlyInstantEventIdsSeen
+    : [];
+  const instantEvents = CHALLENGE_RANDOM_EVENTS.filter(event => event?.instant && event.phase === 'friendly');
+  if (instantEvents.length === 0) return null;
+
+  const unseenInstantEvents = instantEvents.filter(event => !friendlyInstantEventIdsSeen.includes(event.id));
+  const candidates = unseenInstantEvents.length > 0 ? unseenInstantEvents : instantEvents;
+  const picked = candidates[Math.floor(Math.random() * candidates.length)];
+  if (!picked) return null;
+
+  return {
+    type: 'friendly_instant',
+    event: buildChallengeFriendlyInstantEvent(picked),
     eventId: picked.id
   };
 }
@@ -2788,20 +2817,37 @@ function applyChallengeMatchOutcome({ state, opponent, result, matchType, stageL
     challenge.forcedPostMatchEvent = null;
   }
   if (next.gameState === 'playing' && !isFinalMatch && !hasCapeVerdeAftermathQueued) {
-    if (challenge.forcedPostMatchEvent !== 'heckling' && (stats.dressingRoom || 0) < 60 && Math.random() < 0.35) {
-      challenge.forcedPostMatchEvent = 'heckling';
-    }
+    if (matchType === 'friendly') {
+      const postMatchEvent = pickChallengeFriendlyInstantEvent(challenge);
+      if (postMatchEvent?.event) {
+        challenge.friendlyInstantEventIdsSeen = Array.isArray(challenge.friendlyInstantEventIdsSeen)
+          ? challenge.friendlyInstantEventIdsSeen.slice()
+          : [];
+        if (postMatchEvent.eventId && !challenge.friendlyInstantEventIdsSeen.includes(postMatchEvent.eventId)) {
+          challenge.friendlyInstantEventIdsSeen.push(postMatchEvent.eventId);
+        }
+        challenge.pendingPostMatchEvent = {
+          type: postMatchEvent.type,
+          event: postMatchEvent.event,
+          eventId: postMatchEvent.eventId || null
+        };
+      }
+    } else {
+      if (challenge.forcedPostMatchEvent !== 'heckling' && (stats.dressingRoom || 0) < 60 && Math.random() < 0.35) {
+        challenge.forcedPostMatchEvent = 'heckling';
+      }
 
-    const postMatchEvent = pickChallengePostMatchEvent(challenge);
-    if (postMatchEvent?.event) {
-      challenge.pendingPostMatchEvent = {
-        type: postMatchEvent.type,
-        event: postMatchEvent.event,
-        eventId: postMatchEvent.eventId || null
-      };
-    }
-    if (challenge.forcedPostMatchEvent === 'heckling') {
-      challenge.forcedPostMatchEvent = null;
+      const postMatchEvent = pickChallengePostMatchEvent(challenge);
+      if (postMatchEvent?.event) {
+        challenge.pendingPostMatchEvent = {
+          type: postMatchEvent.type,
+          event: postMatchEvent.event,
+          eventId: postMatchEvent.eventId || null
+        };
+      }
+      if (challenge.forcedPostMatchEvent === 'heckling') {
+        challenge.forcedPostMatchEvent = null;
+      }
     }
   }
 
@@ -3401,6 +3447,7 @@ function gameReducer(state, action) {
           negativeNews: Array.isArray(state.challenge?.negativeNews) ? state.challenge.negativeNews.map(item => ({ ...item })) : [],
           legendsUsed: Array.isArray(state.challenge?.legendsUsed) ? state.challenge.legendsUsed.slice() : [],
           randomEventIdsSeen: Array.isArray(state.challenge?.randomEventIdsSeen) ? state.challenge.randomEventIdsSeen.slice() : [],
+          friendlyInstantEventIdsSeen: Array.isArray(state.challenge?.friendlyInstantEventIdsSeen) ? state.challenge.friendlyInstantEventIdsSeen.slice() : [],
           complaintLetterIdsSeen: Array.isArray(state.challenge?.complaintLetterIdsSeen) ? state.challenge.complaintLetterIdsSeen.slice() : [],
           complaintLetterHistory: Array.isArray(state.challenge?.complaintLetterHistory) ? state.challenge.complaintLetterHistory.map(item => ({ ...item })) : [],
           pendingComplaintLetter: state.challenge?.pendingComplaintLetter ? { ...state.challenge.pendingComplaintLetter } : null,
@@ -3451,7 +3498,7 @@ function gameReducer(state, action) {
 
       applyChallengeControlGameover(next, state);
 
-      if (next.gameState === 'playing' && isRandomEvent) {
+      if (next.gameState === 'playing' && isRandomEvent && !currentEvent.instant) {
         const eventNegativeNewsNotice = (action.payload?.effects?.negativeNews || 0) > 0
           ? getChallengeNegativeNewsNotice('event')
           : '';
