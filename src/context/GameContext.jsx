@@ -2783,6 +2783,15 @@ function applyChallengeMatchOutcome({ state, opponent, result, matchType, stageL
         description: appendChallengeNotice(`${buildPenaltyAwareLossText(`最终获得世界杯第四名。${matchMoodText}`)}`, matchNewsNotice),
         setPendingGameState: 'gameover'
       });
+    } else if (currentKnockoutRound?.id === 'final') {
+      markCurrentChallengeFailed(next);
+      next.gameoverOverrideTitle = lostOnPenalties ? '点球落败，世界杯亚军' : '世界杯亚军';
+      next.gameoverOverrideText = `西班牙输掉了世界杯决赛，带着亚军结束了这届世界杯。你们已经站到了离大力神杯最近的地方，但最后一步没有迈过去。银牌挂在胸前并不轻，它提醒所有人：你们曾经无限接近冠军。`;
+      next.currentEvent = buildChallengeResultEvent({
+        title: lostOnPenalties ? '点球落败，世界杯亚军' : '世界杯亚军',
+        description: appendChallengeNotice(`${buildPenaltyAwareLossText(`最终获得世界杯亚军。更衣室里很安静，没人愿意第一个摘下脖子上的银牌。`)}`, matchNewsNotice),
+        setPendingGameState: 'gameover'
+      });
     } else {
       markCurrentChallengeFailed(next);
       next.gameoverOverrideText = `4年。你看着球场上或垂头掩面，或抱头痛哭的年轻人，默默叹了口气。几个球员从草地上站起来，和欢呼雀跃的对手握手。你感到鼻子发酸。你要加入哪一方呢，是更真实的前者，还是更有风度的后者？没有人能替你做出决定，就像没有一个全能的神为你扭转时间，让你有更多的机会改变战局一样。你和${getChallengeCountryName(state)}的挑战结束了。`;

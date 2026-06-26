@@ -497,7 +497,7 @@ export default function SaveModal({ open, onClose, canSave }) {
                       }}
                       className="retro-btn-primary text-xs py-1 px-2"
                     >
-                      保存
+                      {isEmpty ? '保存' : '覆盖'}
                     </button>
                   ) : null}
                 </div>
