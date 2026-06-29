@@ -12,10 +12,9 @@ import YouthAcademyModal from './components/YouthAcademyModal';
 import ChallengeDashboard from './components/ChallengeDashboard';
 import ChallengeEventCard from './components/ChallengeEventCard';
 import { ACHIEVEMENTS } from './data/achievements';
-import { readGlobalAchievements, writeGlobalAchievements } from './data/achievementsStorage';
+import { readGlobalAchievements } from './data/achievementsStorage';
 import { CHALLENGE_MODE_TEAM } from './data/challengeMode';
 
-const SAVE_ISSUE_APOLOGY_DISMISSED_KEY = 'gsm_save_issue_apology_dismissed_v4';
 const CHALLENGE_ONBOARDING_SEEN_KEY = 'gsm_challenge_onboarding_seen_v1';
 
 function OnboardingOverlay({ stepIndex, steps, onNext, onPrev, onSkip, onFinish, finishText }) {
@@ -301,7 +300,6 @@ function App() {
   const { state, dispatch } = useGame();
   const prevGameStateRef = useRef(state.gameState);
   const [selectedMode, setSelectedMode] = useState(null);
-  const [showMigrationNotice, setShowMigrationNotice] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [coachingPhilosophy, setCoachingPhilosophy] = useState('');
   const [selectedTeam, setSelectedTeam] = useState(null);
@@ -326,7 +324,6 @@ function App() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showYouthAcademyModal, setShowYouthAcademyModal] = useState(false);
   const [globalAchievements, setGlobalAchievements] = useState(() => readGlobalAchievements());
-  const [showPostMigrationApology, setShowPostMigrationApology] = useState(false);
 
   const globalUnlockedCount = useMemo(() => Object.keys(globalAchievements || {}).length, [globalAchievements]);
   const globalRecentUnlockedIds = useMemo(() => {
@@ -356,34 +353,6 @@ function App() {
     }
   };
 
-  const migrationNoticeContext = useMemo(() => {
-    if (typeof window === 'undefined') {
-      return { shouldShow: false, hostname: '', dismissKey: 'gsm_migration_notice_dismissed_v3' };
-    }
-
-    const hostname = window.location.hostname || '';
-    return {
-      shouldShow:
-        hostname === 'football-manager-sim.pages.dev' ||
-        hostname === 'rowaninc.ccwu.cc' ||
-        hostname === 'localhost' ||
-        hostname === '127.0.0.1',
-      hostname,
-      dismissKey: 'gsm_migration_notice_dismissed_v3'
-    };
-  }, []);
-
-  const saveIssueApologyContext = useMemo(() => {
-    if (typeof window === 'undefined') {
-      return { shouldShow: false, dismissKey: SAVE_ISSUE_APOLOGY_DISMISSED_KEY };
-    }
-
-    return {
-      shouldShow: true,
-      dismissKey: SAVE_ISSUE_APOLOGY_DISMISSED_KEY
-    };
-  }, []);
-
   useEffect(() => {
     if (!currentToast) return;
     const t = setTimeout(() => {
@@ -409,33 +378,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!migrationNoticeContext.shouldShow) return;
-
-    try {
-      const dismissed = window.localStorage.getItem(migrationNoticeContext.dismissKey);
-      if (dismissed === '1') return;
-    } catch {
-      // ignore
-    }
-
-    setShowMigrationNotice(true);
-  }, [migrationNoticeContext]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!saveIssueApologyContext.shouldShow) return;
-
-    try {
-      const dismissed = window.localStorage.getItem(saveIssueApologyContext.dismissKey);
-      if (dismissed === '1') return;
-      setShowPostMigrationApology(true);
-    } catch {
-      // ignore
-    }
-  }, [saveIssueApologyContext]);
-
-  useEffect(() => {
     const prevGameState = prevGameStateRef.current;
     if (state.gameState === 'start' && prevGameState !== 'start') {
       setSelectedMode(null);
@@ -458,159 +400,6 @@ function App() {
     setShowChallengeAchievementsModal(true);
     dispatch({ type: 'MARK_ALL_CHALLENGE_ACHIEVEMENTS_SEEN' });
   };
-
-  const dismissMigrationNotice = (remember = false) => {
-    if (remember && typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem(migrationNoticeContext.dismissKey, '1');
-      } catch {
-        // ignore
-      }
-    }
-    setShowMigrationNotice(false);
-  };
-
-  const dismissSaveIssueApology = () => {
-    if (typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem(saveIssueApologyContext.dismissKey, '1');
-      } catch {
-        // ignore
-      }
-    }
-    setShowPostMigrationApology(false);
-  };
-
-  const unlockAllLegacyAchievements = () => {
-    const now = new Date().toISOString();
-    const next = {};
-
-    ACHIEVEMENTS.forEach(({ id }) => {
-      next[id] = globalAchievements?.[id] || { unlockedAt: now };
-    });
-
-    writeGlobalAchievements(next);
-    setGlobalAchievements(next);
-    dismissSaveIssueApology();
-  };
-
-  const migrationNoticeModal = showMigrationNotice && migrationNoticeContext.shouldShow ? (
-    <div className="fixed inset-0 z-[1200] flex items-center justify-center p-3 bg-black/40">
-      <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-2xl w-full p-3">
-        <div className="flex items-center justify-between mb-2">
-          <div className="font-bold text-sm font-mono">站点迁移通知</div>
-          <button
-            onClick={() => dismissMigrationNotice(false)}
-            className="retro-btn text-xs py-1 px-2"
-          >
-            关闭
-          </button>
-        </div>
-
-        <div className="text-xs font-mono text-black leading-relaxed space-y-2">
-          <p>
-            当前游戏现已提供双站入口：
-            <a
-              href="https://rowaninc.ccwu.cc"
-              target="_blank"
-              rel="noreferrer"
-              className="underline ml-1"
-            >
-              https://rowaninc.ccwu.cc
-            </a>
-          </p>
-          <p>
-            新站：
-            <a
-              href="https://rowaninc.ccwu.cc"
-              target="_blank"
-              rel="noreferrer"
-              className="underline mx-1"
-            >
-              https://rowaninc.ccwu.cc
-            </a>
-            <br />
-            旧站：
-            <a
-              href="https://football-manager-sim.pages.dev"
-              target="_blank"
-              rel="noreferrer"
-              className="underline mx-1"
-            >
-              https://football-manager-sim.pages.dev
-            </a>
-            <br />
-            旧站仍然可以继续使用，但由于浏览器会按域名分别保存本地存档，建议后续优先使用新站。如果你之前已经在旧站玩过，原有存档与成就都可以迁移。
-          </p>
-
-          <div className="border-2 border-black p-2 bg-gray-50">
-            <div className="font-bold mb-1">如何迁移存档</div>
-            <div>1. 在旧站 `football-manager-sim.pages.dev` 打开游戏，点击页面下方的“存档入口”。</div>
-            <div>2. 在“存档迁移（导出 / 导入）”区域点击“生成导出文本”，再点击“复制导出文本”。</div>
-            <div>3. 打开新站 `https://rowaninc.ccwu.cc`。</div>
-            <div>4. 在新域名再次点击页面下方的“存档入口”，把刚才复制的内容粘贴到“粘贴导入文本”文本框。</div>
-            <div>5. 依次点击“验证并准备导入”与“确认导入（覆盖存档与成就）”，页面刷新后即可完成迁移。</div>
-          </div>
-
-          <div className="text-[11px] text-gray-700">
-            提示：迁移会同时带走自动存档、手动存档槽位和全局成就。为保险起见，你也可以先把导出文本另外保存一份。如果你之前在旧站有存档，请先导出，再到新站导入。
-          </div>
-        </div>
-
-        <div className="mt-3 flex flex-wrap justify-end gap-2">
-          <button
-            onClick={() => dismissMigrationNotice(true)}
-            className="retro-btn text-xs py-1 px-2"
-          >
-            不再提示
-          </button>
-          <a
-            href="https://rowaninc.ccwu.cc"
-            target="_blank"
-            rel="noreferrer"
-            className="retro-btn-primary text-xs py-1 px-2 inline-flex items-center"
-          >
-            前往新域名
-          </a>
-        </div>
-      </div>
-    </div>
-  ) : null;
-
-  const postMigrationApologyModal = showPostMigrationApology && !showMigrationNotice ? (
-    <div className="fixed inset-0 z-[1250] flex items-center justify-center p-3 bg-black/40">
-      <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-lg w-full p-3">
-        <div className="flex items-center justify-between mb-2">
-          <div className="font-bold text-sm font-mono">关于存档异常的致歉</div>
-          <button
-            onClick={dismissSaveIssueApology}
-            className="retro-btn text-xs py-1 px-2"
-          >
-            关闭
-          </button>
-        </div>
-        <div className="text-xs font-mono text-black leading-relaxed space-y-2">
-          <p>
-            很抱歉，之前的版本更新导致部分用户在部分设备上出现旧存档不显示的问题；旧存档无法恢复，但成就可以一键点亮。如果你希望一键点亮所有旧成就，请点击：【一键点亮所有旧成就】
-          </p>
-        </div>
-        <div className="mt-3 flex justify-end gap-2">
-          <button
-            onClick={unlockAllLegacyAchievements}
-            className="retro-btn-primary text-xs py-1 px-2"
-          >
-            一键点亮所有旧成就
-          </button>
-          <button
-            onClick={dismissSaveIssueApology}
-            className="retro-btn text-xs py-1 px-2"
-          >
-            我知道了
-          </button>
-        </div>
-      </div>
-    </div>
-  ) : null;
 
   useEffect(() => {
     if (!onboardingPending) return;
@@ -738,7 +527,7 @@ function App() {
       id: 'welcome',
       targets: [],
       title: '欢迎',
-      text: '欢迎来到《豪门教练模拟器v3.0》！这是一个简短的新手教程，你可以选择跳过，或点击下一步来观看。'
+      text: '欢迎来到《豪门教练模拟器v3.1》！这是一个简短的新手教程，你可以选择跳过，或点击下一步来观看。'
     },
     {
       id: 'schedule',
@@ -1202,8 +991,6 @@ function App() {
     return (
       <div className="min-h-screen bg-[#e0e0e0] flex items-center justify-center p-2">
         <AchievementToast toast={currentToast} />
-        {migrationNoticeModal}
-        {postMigrationApologyModal}
         <div className="retro-box p-3 max-w-sm w-full">
           {teamInfoId && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
@@ -1289,7 +1076,7 @@ function App() {
             )}
           </div>
 
-          <h1 className="text-xl font-bold text-center mb-3 text-black uppercase font-mono border-b-2 border-black pb-1">豪门教练模拟器v3.0</h1>
+          <h1 className="text-xl font-bold text-center mb-3 text-black uppercase font-mono border-b-2 border-black pb-1">豪门教练模拟器v3.1</h1>
 
           {!selectedMode && (
             <div className="mb-3 space-y-2">
@@ -1563,7 +1350,6 @@ function App() {
       return (
         <div className="min-h-screen bg-white flex items-center justify-center p-3 text-black font-mono">
           <AchievementToast toast={currentToast} />
-          {migrationNoticeModal}
           <div className="text-center max-w-xl border-4 border-black p-4 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
             <h1 className="text-2xl font-bold mb-3 uppercase tracking-tighter">{title}</h1>
             <p className="text-sm mb-4 whitespace-pre-wrap leading-relaxed">{text}</p>
@@ -1721,7 +1507,6 @@ function App() {
           }
         `}</style>
         <AchievementToast toast={currentToast} />
-        {migrationNoticeModal}
         <div className="pointer-events-none absolute inset-y-0 left-0 w-1/2">
           {confettiPieces.map(index => (
             <span
@@ -1846,8 +1631,6 @@ function App() {
   return (
     <div className="h-screen bg-[#e0e0e0] p-2 font-mono overflow-hidden">
       <AchievementToast toast={currentToast} />
-      {migrationNoticeModal}
-      {postMigrationApologyModal}
 
       <div className="max-w-6xl w-full h-full mx-auto flex flex-col gap-2 relative">
         <div className="space-y-2 overflow-auto">

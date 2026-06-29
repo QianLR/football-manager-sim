@@ -224,7 +224,7 @@ export default function SaveModal({ open, onClose, canSave }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
-      <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-2xl w-full p-3">
+      <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-2xl w-full max-h-[calc(100dvh-1.5rem)] overflow-y-auto p-3">
         <div className="flex items-center justify-between mb-2">
           <div className="font-bold text-sm font-mono">存档</div>
           <button
@@ -242,32 +242,6 @@ export default function SaveModal({ open, onClose, canSave }) {
             关闭
           </button>
         </div>
-
-        {confirmSlot !== null && (
-          <div className="mb-3 border-2 border-black p-2">
-            <div className="font-bold text-xs font-mono mb-2">确认覆盖</div>
-            <div className="text-[11px] text-gray-800 font-mono leading-snug">
-              你确认要覆盖手动槽位 {confirmSlot} 吗？
-            </div>
-            <div className="mt-2 flex justify-end gap-2">
-              <button
-                onClick={() => setConfirmSlot(null)}
-                className="retro-btn text-xs py-1 px-2"
-              >
-                取消
-              </button>
-              <button
-                onClick={() => {
-                  dispatch({ type: 'REQUEST_MANUAL_SAVE', payload: { slot: confirmSlot } });
-                  setConfirmSlot(null);
-                }}
-                className="retro-btn-primary text-xs py-1 px-2"
-              >
-                覆盖保存
-              </button>
-            </div>
-          </div>
-        )}
 
         <div className="border-2 border-black p-2 mb-3">
           <div className="text-xs font-bold font-mono mb-1">自动存档（最新）</div>
@@ -506,6 +480,34 @@ export default function SaveModal({ open, onClose, canSave }) {
           })}
         </div>
       </div>
+
+      {confirmSlot !== null && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 bg-black/30">
+          <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-sm w-full p-3">
+            <div className="font-bold text-sm font-mono mb-2">确认覆盖</div>
+            <div className="text-xs text-gray-800 font-mono leading-snug">
+              你确认要覆盖手动槽位 {confirmSlot} 吗？
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmSlot(null)}
+                className="retro-btn text-xs py-1 px-2"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  dispatch({ type: 'REQUEST_MANUAL_SAVE', payload: { slot: confirmSlot } });
+                  setConfirmSlot(null);
+                }}
+                className="retro-btn-primary text-xs py-1 px-2"
+              >
+                覆盖保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
