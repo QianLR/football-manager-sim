@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useGame } from '../context/GameContextInstance';
+import { useLanguage } from '../i18n/LanguageContext';
+import { translateRenderedText } from '../i18n/translations';
 
 const StatBar = ({ label, value, max = 100, showBar = true }) => {
   const percentage = max ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
@@ -24,10 +26,12 @@ const StatBar = ({ label, value, max = 100, showBar = true }) => {
 
 const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
   const { state } = useGame();
+  const { language } = useLanguage();
   const { stats, currentTeam, month, quarter, year, tabloidCount, playerName, estimatedRanking, specialMechanicState } = state;
 
   const [infoKey, setInfoKey] = useState(null);
   const [showSchedule, setShowSchedule] = useState(false);
+  const uiText = text => language === 'en' ? translateRenderedText(text) : text;
 
   if (!currentTeam) return null;
 
@@ -35,10 +39,14 @@ const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
   const isBayern = currentTeam.id === 'bayern_munich';
   const bayernCommitteeRemoved = Boolean(specialMechanicState?.bayernCommitteeRemoved);
   const dressingRoomRevealed = Boolean(specialMechanicState?.bayernDressingRoomRevealed);
-  const displayDressingRoom = isBayern && !bayernCommitteeRemoved && !dressingRoomRevealed ? 100 : stats.dressingRoom;
+  const isBayernDressingRoomHidden = isBayern && !bayernCommitteeRemoved && !dressingRoomRevealed;
+  const displayDressingRoom = isBayernDressingRoomHidden ? 100 : stats.dressingRoom;
 
   const expectationRanking = currentTeam.expectations?.ranking;
-  const expectationText = expectationRanking === 1 ? '第1名' : `前${expectationRanking}名`;
+  const expectationText = language === 'en'
+    ? (expectationRanking === 1 ? '1st' : `Top ${expectationRanking}`)
+    : (expectationRanking === 1 ? '第1名' : `前${expectationRanking}名`);
+  const displayTeamName = language === 'en' ? translateRenderedText(currentTeam.name) : currentTeam.name;
 
   const leagueOpponents = Array.isArray(state.leagueOpponents) ? state.leagueOpponents : [];
   const leagueSchedule = Array.isArray(state.leagueSchedule) ? state.leagueSchedule : [];
@@ -80,26 +88,32 @@ const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
   return (
     <div className="retro-box p-2">
       {infoKey && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40" data-i18n-skip>
           <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-md w-full p-3">
             <div className="flex items-center justify-between mb-2">
-              <div className="font-bold text-sm font-mono">说明</div>
+              <div className="font-bold text-sm font-mono">{uiText('说明')}</div>
               <button
                 onClick={() => setInfoKey(null)}
                 className="retro-btn text-xs py-1 px-2"
               >
-                关闭
+                {uiText('关闭')}
               </button>
             </div>
             <div className="text-xs font-mono leading-relaxed text-gray-800">
               {infoKey === 'authority' && (
-                <div>当话语权为0时，所有“降低话语权”的效果将改为“降低管理层支持”。</div>
+                <div>{uiText('当话语权为0时，所有“降低话语权”的效果将改为“降低管理层支持”。')}</div>
+              )}
+              {infoKey === 'boardSupport' && (
+                <div>{uiText('管理层支持代表俱乐部高层对你的信任。降至0时，你会被解雇。')}</div>
+              )}
+              {infoKey === 'dressingRoom' && (
+                <div>{uiText('更衣室稳定代表球队内部氛围和球员对你的支持。降至0时，你会被解雇。')}</div>
               )}
               {infoKey === 'mediaSupport' && (
-                <div>当媒体支持为0时，所有“降低媒体支持”的效果将改为“降低更衣室稳定”。</div>
+                <div>{uiText('当媒体支持为0时，所有“降低媒体支持”的效果将改为“降低更衣室稳定”。')}</div>
               )}
               {infoKey === 'bayern_dressingRoom' && (
-                <div>真实数值隐藏在迷雾中…如果真实数值低于40，球队将陷入动乱：管理层支持与话语权不断下降，小报消息每月+1。</div>
+                <div>{uiText('真实数值隐藏在迷雾中…如果真实数值低于40，球队将陷入动乱：管理层支持与话语权不断下降，小报消息每月+1。')}</div>
               )}
             </div>
           </div>
@@ -150,7 +164,11 @@ const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
 
       <div className="flex justify-between items-start gap-2 mb-2 border-b-2 border-black pb-1">
         <div>
-          <h2 className="text-base font-bold font-mono uppercase">{currentTeam.name} | 教练：{playerName}</h2>
+          <h2 className="text-base font-bold font-mono uppercase" data-i18n-skip>
+            {language === 'en'
+              ? `${displayTeamName} | Manager: ${playerName}`
+              : `${displayTeamName} | 教练：${playerName}`}
+          </h2>
           <div className="mt-1">
             <button
               onClick={() => setShowSchedule(true)}
@@ -168,8 +186,14 @@ const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
             </div>
           ) : null}
           <div className="text-[10px] sm:text-xs font-mono text-right leading-tight">
-            <div>第{year}年 第{quarter}季度 第{month}个月</div>
-            <div data-onboard-id="expectation">期望: {expectationText}</div>
+            <div data-i18n-skip>
+              {language === 'en'
+                ? `Year ${year} · Quarter ${quarter} · Month ${month}`
+                : `第${year}年 第${quarter}季度 第${month}个月`}
+            </div>
+            <div data-onboard-id="expectation" data-i18n-skip>
+              {language === 'en' ? 'Expectation' : '期望'}: {expectationText}
+            </div>
             {isRoofClosed && (
               <div className="text-[11px] text-gray-800 font-mono">🏟️顶棚关闭</div>
             )}
@@ -179,24 +203,36 @@ const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
 
       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
         <div data-onboard-id="stat_board_support">
-          <StatBar label="管理层支持" value={stats.boardSupport} color="blue" />
+          <StatBar
+            label={
+              <span className="inline-flex items-center gap-1">
+                <span className="font-bold">管理层支持</span>
+                <button
+                  onClick={() => setInfoKey('boardSupport')}
+                  className="retro-btn text-[10px] py-0 px-1"
+                  aria-label={language === 'en' ? 'View Board Support Information' : '查看管理层支持说明'}
+                >
+                  ?
+                </button>
+              </span>
+            }
+            value={stats.boardSupport}
+            color="blue"
+          />
         </div>
         <div data-onboard-id="stat_dressing_room">
           <StatBar
             label={
-              isBayern && !bayernCommitteeRemoved ? (
-                <span className="inline-flex items-center gap-1">
-                  <span className="font-bold">更衣室稳定</span>
-                  <button
-                    onClick={() => setInfoKey('bayern_dressingRoom')}
-                    className="retro-btn text-[10px] py-0 px-1"
-                  >
-                    ?
-                  </button>
-                </span>
-              ) : (
-                '更衣室稳定'
-              )
+              <span className="inline-flex items-center gap-1">
+                <span className="font-bold">更衣室稳定</span>
+                <button
+                  onClick={() => setInfoKey(isBayernDressingRoomHidden ? 'bayern_dressingRoom' : 'dressingRoom')}
+                  className="retro-btn text-[10px] py-0 px-1"
+                  aria-label={language === 'en' ? 'View Dressing Room Stability Information' : '查看更衣室稳定说明'}
+                >
+                  ?
+                </button>
+              </span>
             }
             value={displayDressingRoom}
             color="blue"
@@ -266,9 +302,13 @@ const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
           <div className="text-[11px] font-mono text-gray-700" data-onboard-id="trophy_display">
             <span className="inline-flex items-center gap-1">
               <span>🏆</span>
-              <span>联赛 {Array.isArray(state.leagueChampionYears) ? state.leagueChampionYears.length : 0}</span>
+              <span data-i18n-skip>
+                {language === 'en' ? 'League Titles' : '联赛'} {Array.isArray(state.leagueChampionYears) ? state.leagueChampionYears.length : 0}
+              </span>
               <span className="text-gray-400">|</span>
-              <span>欧冠 {Array.isArray(state.uclChampionYears) ? state.uclChampionYears.length : 0}</span>
+              <span data-i18n-skip>
+                {language === 'en' ? 'Champions League Titles' : '欧冠'} {Array.isArray(state.uclChampionYears) ? state.uclChampionYears.length : 0}
+              </span>
             </span>
           </div>
         </div>

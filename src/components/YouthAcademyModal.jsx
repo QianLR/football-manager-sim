@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../context/GameContextInstance';
+import { repairYouthTraits } from '../utils/youthTraitRepair';
 
 function clampInt(n, min, max) {
   const v = typeof n === 'number' ? Math.round(n) : 0;
@@ -220,7 +221,7 @@ export default function YouthAcademyModal({ open, onClose }) {
     return arr.slice(0, maxSlots);
   }, [draftSquadPlayers, maxSlots]);
 
-  const academyPlayer = draftAcademyPlayer;
+  const academyPlayer = useMemo(() => repairYouthTraits(draftAcademyPlayer), [draftAcademyPlayer]);
 
   const canPromote = Boolean(
     academyPlayer &&
@@ -248,8 +249,8 @@ export default function YouthAcademyModal({ open, onClose }) {
     if (didInitOnOpenRef.current) return;
     didInitOnOpenRef.current = true;
     const id = setTimeout(() => {
-      setDraftAcademyPlayer(state.youthAcademyPlayer ? { ...state.youthAcademyPlayer } : null);
-      setDraftSquadPlayers(squad.map(p => ({ ...p })));
+      setDraftAcademyPlayer(state.youthAcademyPlayer ? repairYouthTraits({ ...state.youthAcademyPlayer }) : null);
+      setDraftSquadPlayers(squad.map(p => repairYouthTraits({ ...p })));
       setAcademyNameDraft(String(state.youthAcademyPlayer?.name ?? ''));
       setSquadNameDrafts({});
       setShowCloseConfirm(false);
@@ -268,8 +269,8 @@ export default function YouthAcademyModal({ open, onClose }) {
     if (!open) return;
     if (!forceSyncFromState) return;
     const id = setTimeout(() => {
-      setDraftAcademyPlayer(state.youthAcademyPlayer ? { ...state.youthAcademyPlayer } : null);
-      setDraftSquadPlayers(squad.map(p => ({ ...p })));
+      setDraftAcademyPlayer(state.youthAcademyPlayer ? repairYouthTraits({ ...state.youthAcademyPlayer }) : null);
+      setDraftSquadPlayers(squad.map(p => repairYouthTraits({ ...p })));
       setAcademyNameDraft(String(state.youthAcademyPlayer?.name ?? ''));
       setSquadNameDrafts({});
       setForceSyncFromState(false);
@@ -312,8 +313,8 @@ export default function YouthAcademyModal({ open, onClose }) {
 
   const stateSignature = useMemo(() => {
     return JSON.stringify({
-      a: makeDraftSignaturePlayer(state.youthAcademyPlayer),
-      s: (Array.isArray(squad) ? squad : []).map(makeDraftSignaturePlayer)
+      a: makeDraftSignaturePlayer(repairYouthTraits(state.youthAcademyPlayer)),
+      s: (Array.isArray(squad) ? squad : []).map(p => makeDraftSignaturePlayer(repairYouthTraits(p)))
     });
   }, [state.youthAcademyPlayer, squad]);
 
@@ -324,19 +325,19 @@ export default function YouthAcademyModal({ open, onClose }) {
     if (forceSyncFromState) return;
     if (hasUnsavedChanges) return;
     const id = setTimeout(() => {
-      setDraftAcademyPlayer(state.youthAcademyPlayer ? { ...state.youthAcademyPlayer } : null);
-      setDraftSquadPlayers(squad.map(p => ({ ...p })));
+      setDraftAcademyPlayer(state.youthAcademyPlayer ? repairYouthTraits({ ...state.youthAcademyPlayer }) : null);
+      setDraftSquadPlayers(squad.map(p => repairYouthTraits({ ...p })));
       setAcademyNameDraft(String(state.youthAcademyPlayer?.name ?? ''));
     }, 0);
     return () => clearTimeout(id);
-  }, [open, forceSyncFromState, hasUnsavedChanges, stateSignature]);
+  }, [open, forceSyncFromState, hasUnsavedChanges, stateSignature, state.youthAcademyPlayer, squad]);
 
   const applyDraftToState = () => {
     dispatch({
       type: 'YOUTH_APPLY_DRAFT',
       payload: {
-        academyPlayer: draftAcademyPlayer,
-        squadPlayers: draftSquadPlayers
+        academyPlayer: repairYouthTraits(draftAcademyPlayer),
+        squadPlayers: draftSquadPlayers.map(repairYouthTraits)
       }
     });
   };

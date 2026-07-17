@@ -14,8 +14,15 @@ import ChallengeEventCard from './components/ChallengeEventCard';
 import { ACHIEVEMENTS } from './data/achievements';
 import { readGlobalAchievements } from './data/achievementsStorage';
 import { CHALLENGE_MODE_TEAM } from './data/challengeMode';
+import { useLanguage } from './i18n/LanguageContext';
 
 const CHALLENGE_ONBOARDING_SEEN_KEY = 'gsm_challenge_onboarding_seen_v1';
+
+function limitWords(value, maximum) {
+  const words = [...value.matchAll(/\S+/g)];
+  if (words.length <= maximum) return value;
+  return value.slice(0, words[maximum].index).trimEnd();
+}
 
 function OnboardingOverlay({ stepIndex, steps, onNext, onPrev, onSkip, onFinish, finishText }) {
   const step = Array.isArray(steps) ? steps[stepIndex] : null;
@@ -298,6 +305,8 @@ function OnboardingOverlay({ stepIndex, steps, onNext, onPrev, onSkip, onFinish,
 
 function App() {
   const { state, dispatch } = useGame();
+  const { language } = useLanguage();
+  const ui = useCallback((zh, en) => language === 'en' ? en : zh, [language]);
   const prevGameStateRef = useRef(state.gameState);
   const [selectedMode, setSelectedMode] = useState(null);
   const [playerName, setPlayerName] = useState('');
@@ -1012,7 +1021,12 @@ function App() {
                   ) : (
                     <>
                       {(teamsData.find(t => t.id === teamInfoId)?.name || '')}
-                      {teamInfoId === 'fc_barcelona' ? '\n（不建议新手游玩）' : ''}
+                      {teamInfoId === 'fc_barcelona' ? (
+                        <>
+                          {'\n'}
+                          <span data-i18n-skip>{ui('（不建议新手游玩）', '(Not Recommended for New Players)')}</span>
+                        </>
+                      ) : null}
                       {'\n'}
                       {(teamsData.find(t => t.id === teamInfoId)?.description || '')}
                     </>
@@ -1052,22 +1066,27 @@ function App() {
           <div className="mb-3 border-2 border-black bg-white p-2">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <div className="font-bold text-xs font-mono">成就</div>
-                <div className="text-[11px] text-gray-700 font-mono">已解锁 {globalUnlockedCount}/{ACHIEVEMENTS.length}</div>
+                <div className="font-bold text-xs font-mono" data-i18n-skip>{ui('成就', 'Achievements')}</div>
+                <div className="text-[11px] text-gray-700 font-mono" data-i18n-skip>
+                  {ui('已解锁', 'Unlocked')} {globalUnlockedCount}/{ACHIEVEMENTS.length}
+                </div>
               </div>
               <button
                 onClick={() => openAchievementsModal({ title: '成就（全局）', unlockedMap: globalAchievements, markSeen: false })}
                 className="retro-btn text-xs py-1 px-2"
+                data-i18n-skip
               >
-                查看全部
+                {ui('查看全部', 'View All')}
               </button>
             </div>
 
             {globalUnlockedCount === 0 ? (
-              <div className="text-[11px] text-gray-500 font-mono mt-2">尚未解锁任何成就</div>
+              <div className="text-[11px] text-gray-500 font-mono mt-2" data-i18n-skip>
+                {ui('尚未解锁任何成就', 'No Achievements Unlocked Yet')}
+              </div>
             ) : (
               <div className="text-[11px] text-gray-700 font-mono mt-2 leading-snug">
-                最近解锁：
+                <span data-i18n-skip>{ui('最近解锁：', 'Recently Unlocked: ')}</span>
                 {globalRecentUnlockedIds
                   .map(id => ACHIEVEMENTS.find(a => a.id === id)?.title)
                   .filter(Boolean)
@@ -1076,21 +1095,25 @@ function App() {
             )}
           </div>
 
-          <h1 className="text-xl font-bold text-center mb-3 text-black uppercase font-mono border-b-2 border-black pb-1">豪门教练模拟器v3.1</h1>
+          <h1 className="text-xl font-bold text-center mb-3 text-black uppercase font-mono border-b-2 border-black pb-1" data-i18n-skip>
+            {ui('豪门教练模拟器v3.1', 'Elite Club Manager Simulator v3.1')}
+          </h1>
 
           {!selectedMode && (
             <div className="mb-3 space-y-2">
               <button
                 onClick={() => setSelectedMode('regular')}
                 className="w-full retro-btn-primary text-sm py-3"
+                data-i18n-skip
               >
-                常规模式
+                {ui('常规模式', 'Standard Mode')}
               </button>
               <button
                 onClick={() => setSelectedMode('challenge')}
                 className="w-full retro-btn text-sm py-3"
+                data-i18n-skip
               >
-                挑战模式
+                {ui('挑战模式', 'Challenge Mode')}
               </button>
             </div>
           )}
@@ -1105,42 +1128,43 @@ function App() {
                     setShowMourinhoConfirm(false);
                   }}
                   className="retro-btn text-xs py-1 px-2"
+                  data-i18n-skip
                 >
-                  返回模式选择
+                  {ui('返回模式选择', 'Back to Mode Selection')}
                 </button>
               </div>
 
               <div className="mb-2">
-                <label className="block text-black text-xs font-bold mb-1 font-mono">
-                  教练姓名 (限10字)
+                <label className="block text-black text-xs font-bold mb-1 font-mono" data-i18n-skip>
+                  {ui('教练姓名 (限10词)', 'Manager Name (10 Words Max)')}
                 </label>
                 <input
                   type="text"
-                  maxLength={10}
                   value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
+                  onChange={(e) => setPlayerName(limitWords(e.target.value, 10))}
                   className="appearance-none border-2 border-black w-full py-1 px-2 text-xs text-black leading-tight focus:outline-none focus:ring-2 focus:ring-black font-mono rounded-none"
-                  placeholder="请输入您的名字"
+                  placeholder={ui('请输入您的名字', 'Please Enter Your Name')}
+                  data-i18n-skip
                 />
               </div>
 
               <div className="mb-2">
-                <label className="block text-black text-xs font-bold mb-1 font-mono">
-                  执教理念 (限50字)
+                <label className="block text-black text-xs font-bold mb-1 font-mono" data-i18n-skip>
+                  {ui('执教理念 (限50词)', 'Managerial Philosophy (50 Words Max)')}
                 </label>
                 <textarea
-                  maxLength={50}
                   value={coachingPhilosophy}
-                  onChange={(e) => setCoachingPhilosophy(e.target.value)}
+                  onChange={(e) => setCoachingPhilosophy(limitWords(e.target.value, 50))}
                   className="appearance-none border-2 border-black w-full py-1 px-2 text-xs text-black leading-tight focus:outline-none focus:ring-2 focus:ring-black font-mono rounded-none"
-                  placeholder="请输入您的执教理念"
+                  placeholder={ui('请输入您的执教理念', 'Enter Your Managerial Philosophy')}
+                  data-i18n-skip
                   rows={2}
                 />
               </div>
 
               <div className="mb-3">
-                <label className="block text-black text-xs font-bold mb-1 font-mono">
-                  选择挑战
+                <label className="block text-black text-xs font-bold mb-1 font-mono" data-i18n-skip>
+                  {ui('选择挑战', 'Choose a Challenge')}
                 </label>
                 <div className="space-y-2">
                   {groupedTeams.map(group => (
@@ -1169,7 +1193,9 @@ function App() {
                                 ?
                               </button>
                             </div>
-                            <div className={`text-[11px] font-semibold mt-0.5 ${selectedTeam === team.id ? 'text-red-300' : 'text-red-600'}`}>难度: {team.difficulty}</div>
+                            <div className={`text-[11px] font-semibold mt-0.5 ${selectedTeam === team.id ? 'text-red-300' : 'text-red-600'}`} data-i18n-skip>
+                              {ui('难度', 'Difficulty')}: {team.difficulty}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1177,7 +1203,7 @@ function App() {
                   ))}
                   {otherTeams.length > 0 && (
                     <div className="border-2 border-black bg-white p-2">
-                      <div className="font-bold text-xs font-mono">其他</div>
+                      <div className="font-bold text-xs font-mono" data-i18n-skip>{ui('其他', 'Other')}</div>
                       <div className="mt-2 space-y-2">
                         {otherTeams.map(team => (
                           <div
@@ -1201,7 +1227,9 @@ function App() {
                                 ?
                               </button>
                             </div>
-                            <div className={`text-[11px] font-semibold mt-0.5 ${selectedTeam === team.id ? 'text-red-300' : 'text-red-600'}`}>难度: {team.difficulty}</div>
+                            <div className={`text-[11px] font-semibold mt-0.5 ${selectedTeam === team.id ? 'text-red-300' : 'text-red-600'}`} data-i18n-skip>
+                              {ui('难度', 'Difficulty')}: {team.difficulty}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1222,39 +1250,40 @@ function App() {
                     setTeamInfoId(null);
                   }}
                   className="retro-btn text-xs py-1 px-2"
+                  data-i18n-skip
                 >
-                  返回模式选择
+                  {ui('返回模式选择', 'Back to Mode Selection')}
                 </button>
               </div>
               <div className="mb-3">
-                <label className="block text-black text-xs font-bold mb-1 font-mono">
-                  教练姓名 (限10字)
+                <label className="block text-black text-xs font-bold mb-1 font-mono" data-i18n-skip>
+                  {ui('教练姓名 (限10词)', 'Manager Name (10 Words Max)')}
                 </label>
                 <input
                   type="text"
-                  maxLength={10}
                   value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
+                  onChange={(e) => setPlayerName(limitWords(e.target.value, 10))}
                   className="appearance-none border-2 border-black w-full py-1 px-2 text-xs text-black leading-tight focus:outline-none focus:ring-2 focus:ring-black font-mono rounded-none"
-                  placeholder="请输入您的名字"
+                  placeholder={ui('请输入您的名字', 'Please Enter Your Name')}
+                  data-i18n-skip
                 />
               </div>
               <div className="mb-3">
-                <label className="block text-black text-xs font-bold mb-1 font-mono">
-                  执教理念 (限50字)
+                <label className="block text-black text-xs font-bold mb-1 font-mono" data-i18n-skip>
+                  {ui('执教理念 (限50词)', 'Managerial Philosophy (50 Words Max)')}
                 </label>
                 <textarea
-                  maxLength={50}
                   value={coachingPhilosophy}
-                  onChange={(e) => setCoachingPhilosophy(e.target.value)}
+                  onChange={(e) => setCoachingPhilosophy(limitWords(e.target.value, 50))}
                   className="appearance-none border-2 border-black w-full py-1 px-2 text-xs text-black leading-tight focus:outline-none focus:ring-2 focus:ring-black font-mono rounded-none"
-                  placeholder="请输入您的执教理念"
+                  placeholder={ui('请输入您的执教理念', 'Enter Your Managerial Philosophy')}
+                  data-i18n-skip
                   rows={2}
                 />
               </div>
               <div className="mb-3">
-                <label className="block text-black text-xs font-bold mb-1 font-mono">
-                  选择挑战
+                <label className="block text-black text-xs font-bold mb-1 font-mono" data-i18n-skip>
+                  {ui('选择挑战', 'Choose a Challenge')}
                 </label>
                 <div className="space-y-2">
                   <div className="border-2 border-black bg-white p-2">

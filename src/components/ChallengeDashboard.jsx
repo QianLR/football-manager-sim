@@ -1,6 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { useGame } from '../context/GameContextInstance';
-import { CHALLENGE_FRIENDLY_SCHEDULE, CHALLENGE_GROUP_FIXTURES, CHALLENGE_GROUP_TEAMS } from '../data/challengeMode';
+import { CHALLENGE_COMPLAINT_LETTERS, CHALLENGE_FRIENDLY_SCHEDULE, CHALLENGE_GROUP_FIXTURES, CHALLENGE_GROUP_TEAMS } from '../data/challengeMode';
+import { useLanguage } from '../i18n/LanguageContext';
+import { localizeComplaintLetter } from '../i18n/complaintLetters';
+import { translateRenderedText } from '../i18n/translations';
 
 const StatBar = ({ label, value, max = 100, onboardId = null }) => {
   const percentage = max ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
@@ -17,11 +20,11 @@ const StatBar = ({ label, value, max = 100, onboardId = null }) => {
   );
 };
 
-const InfoButton = ({ onClick }) => (
+const InfoButton = ({ onClick, label }) => (
   <button
     onClick={onClick}
     className="inline-flex items-center justify-center w-4 h-4 border-2 border-black rounded-full text-[10px] font-bold bg-white hover:bg-gray-200 text-black leading-none"
-    aria-label="查看属性说明"
+    aria-label={label}
     type="button"
   >
     ?
@@ -57,29 +60,29 @@ function renderFormattedText(text) {
   });
 }
 
-function phaseText(challenge) {
-  if (!challenge) return '准备阶段';
-  if (challenge.phase === 'friendlies') return `友谊赛 ${challenge.friendlyMatchesPlayed}/4`;
-  if (challenge.phase === 'group') return `小组赛 第${(challenge.groupMatchIndex || 0) + 1}轮`;
+function phaseText(challenge, t) {
+  if (!challenge) return t('准备阶段');
+  if (challenge.phase === 'friendlies') return t(`友谊赛 ${challenge.friendlyMatchesPlayed}/4`);
+  if (challenge.phase === 'group') return t(`小组赛 第${(challenge.groupMatchIndex || 0) + 1}轮`);
   if (challenge.phase === 'knockout') {
     const round = challenge.knockoutRounds?.[challenge.knockoutIndex || 0];
-    return round?.label || '淘汰赛';
+    return t(round?.label || '淘汰赛');
   }
-  if (challenge.phase === 'complete') return '挑战完成';
-  return '准备阶段';
+  if (challenge.phase === 'complete') return t('挑战完成');
+  return t('准备阶段');
 }
 
-function pointsRankingText(challenge, stats) {
-  if (!challenge) return '正式比赛未开始';
+function pointsRankingText(challenge, stats, t) {
+  if (!challenge) return t('正式比赛未开始');
   if (challenge.phase === 'group') {
-    return `第${challenge.ranking || 1}名 / ${stats?.points || 0}分`;
+    return t(`第${challenge.ranking || 1}名 / ${stats?.points || 0}分`);
   }
   if (challenge.phase === 'knockout') {
     const round = challenge.knockoutRounds?.[challenge.knockoutIndex || 0];
-    return round?.label || '淘汰赛';
+    return t(round?.label || '淘汰赛');
   }
-  if (challenge.phase === 'complete') return '挑战完成';
-  return '正式比赛未开始';
+  if (challenge.phase === 'complete') return t('挑战完成');
+  return t('正式比赛未开始');
 }
 
 function scoreTextFromMatch(match) {
@@ -91,19 +94,19 @@ function scoreTextFromMatch(match) {
   return '';
 }
 
-function getFriendlyScheduleEntries(challenge) {
+function getFriendlyScheduleEntries(challenge, t) {
   return CHALLENGE_FRIENDLY_SCHEDULE.map((slot, index) => {
     const playedMatch = Array.isArray(challenge?.friendlyHistory) ? challenge.friendlyHistory[index] : null;
     const currentMatchIndex = challenge?.friendlyMatchesPlayed || 0;
     const currentOpponent = index === currentMatchIndex ? challenge?.upcomingOpponent?.name : null;
-    const opponentName = playedMatch?.opponentName || currentOpponent || '暂未确定';
+    const opponentName = t(playedMatch?.opponentName || currentOpponent || '暂未确定');
     return {
       id: `friendly_${slot.round}`,
       type: 'friendly',
-      label: '国际友谊赛',
+      label: t('国际友谊赛'),
       dateText: slot.dateText || '',
       timeText: slot.timeText || '',
-      homeName: '西班牙',
+      homeName: t('西班牙'),
       awayName: opponentName,
       active: challenge?.phase === 'friendlies' && index === currentMatchIndex && Boolean(challenge?.upcomingOpponent?.name),
       scoreText: scoreTextFromMatch(playedMatch),
@@ -112,19 +115,19 @@ function getFriendlyScheduleEntries(challenge) {
   });
 }
 
-function getScheduleEntries(challenge) {
-  if (!challenge) return [{ id: 'empty', text: '未安排赛程', type: 'empty' }];
+function getScheduleEntries(challenge, t) {
+  if (!challenge) return [{ id: 'empty', text: t('未安排赛程'), type: 'empty' }];
 
   if (challenge.phase === 'friendlies') {
     return [
-      ...getFriendlyScheduleEntries(challenge),
+      ...getFriendlyScheduleEntries(challenge, t),
       ...CHALLENGE_GROUP_FIXTURES.map(fixture => {
-        const homeName = CHALLENGE_GROUP_TEAMS.find(team => team.id === fixture.homeId)?.name || '西班牙';
-        const awayName = CHALLENGE_GROUP_TEAMS.find(team => team.id === fixture.awayId)?.name || '未知对手';
+        const homeName = t(CHALLENGE_GROUP_TEAMS.find(team => team.id === fixture.homeId)?.name || '西班牙');
+        const awayName = t(CHALLENGE_GROUP_TEAMS.find(team => team.id === fixture.awayId)?.name || '未知对手');
         return {
           id: `group_preview_${fixture.round}`,
           type: 'group',
-          label: fixture.groupLabel || '世界杯 · 小组赛',
+          label: t(fixture.groupLabel || '世界杯 · 小组赛'),
           dateText: fixture.dateText || '',
           timeText: fixture.timeText || '',
           homeName,
@@ -140,15 +143,15 @@ function getScheduleEntries(challenge) {
       ? challenge.results.filter(item => item?.type === 'group')
       : [];
     return [
-      ...getFriendlyScheduleEntries(challenge),
+      ...getFriendlyScheduleEntries(challenge, t),
       ...CHALLENGE_GROUP_FIXTURES.map((fixture, index) => {
-      const homeName = CHALLENGE_GROUP_TEAMS.find(team => team.id === fixture.homeId)?.name || '西班牙';
-      const awayName = CHALLENGE_GROUP_TEAMS.find(team => team.id === fixture.awayId)?.name || '未知对手';
+      const homeName = t(CHALLENGE_GROUP_TEAMS.find(team => team.id === fixture.homeId)?.name || '西班牙');
+      const awayName = t(CHALLENGE_GROUP_TEAMS.find(team => team.id === fixture.awayId)?.name || '未知对手');
       const playedMatch = groupResults[index] || null;
       return {
         id: `group_${fixture.round}`,
         type: 'group',
-        label: fixture.groupLabel || '世界杯 · 小组赛',
+        label: t(fixture.groupLabel || '世界杯 · 小组赛'),
         dateText: fixture.dateText || '',
         timeText: fixture.timeText || '',
         homeName,
@@ -164,21 +167,23 @@ function getScheduleEntries(challenge) {
   if (challenge.phase === 'knockout') {
     const opponentName = challenge.knockoutRounds?.[challenge.knockoutIndex || 0]?.opponent?.name;
     return [
-      ...getFriendlyScheduleEntries(challenge),
+      ...getFriendlyScheduleEntries(challenge, t),
       {
         id: 'knockout',
-        text: opponentName ? `西班牙 vs ${opponentName}` : '未安排赛程',
+        text: opponentName ? t(`西班牙 vs ${opponentName}`) : t('未安排赛程'),
         type: 'single'
       }
     ];
   }
 
-  return [{ id: 'empty', text: '未安排赛程', type: 'empty' }];
+  return [{ id: 'empty', text: t('未安排赛程'), type: 'empty' }];
 }
 
 export default function ChallengeDashboard({ topActions = null }) {
   const { state } = useGame();
+  const { language } = useLanguage();
   const { currentTeam, playerName, stats, challenge } = state;
+  const t = value => language === 'en' ? translateRenderedText(value) : value;
   const [showTable, setShowTable] = useState(false);
   const [infoKey, setInfoKey] = useState(null);
   const [showComplaintLetters, setShowComplaintLetters] = useState(false);
@@ -207,7 +212,21 @@ export default function ChallengeDashboard({ topActions = null }) {
   const complaintLetters = challenge?.complaintLetters || 0;
   const complaintLetterHistory = Array.isArray(challenge?.complaintLetterHistory) ? challenge.complaintLetterHistory : [];
   const activeComplaintLetter = complaintLetterHistory[complaintLetterIndex] || null;
-  const scheduleEntries = getScheduleEntries(challenge);
+  const activeComplaintTemplate = activeComplaintLetter
+    ? CHALLENGE_COMPLAINT_LETTERS.find(letter => (
+        letter.id === activeComplaintLetter.letterId || String(activeComplaintLetter.id || '').includes(letter.id)
+      ))
+    : null;
+  const localizedActiveComplaint = activeComplaintLetter
+    ? localizeComplaintLetter({
+        letter: activeComplaintTemplate,
+        language,
+        playerName,
+        fallbackTitle: activeComplaintLetter.title,
+        fallbackDescription: activeComplaintLetter.description
+      })
+    : null;
+  const scheduleEntries = getScheduleEntries(challenge, t);
   const statusCards = [];
 
   if ((stats.dressingRoom ?? 0) >= 80) {
@@ -270,27 +289,27 @@ export default function ChallengeDashboard({ topActions = null }) {
   return (
     <div className="retro-box p-2">
       {infoKey && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40" data-i18n-skip>
           <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-md w-full p-3">
             <div className="flex items-center justify-between mb-2">
-              <div className="font-bold text-sm font-mono">属性说明</div>
-              <button onClick={() => setInfoKey(null)} className="retro-btn text-xs py-1 px-2">关闭</button>
+              <div className="font-bold text-sm font-mono">{t('属性说明')}</div>
+              <button onClick={() => setInfoKey(null)} className="retro-btn text-xs py-1 px-2">{t('关闭')}</button>
             </div>
             <div className="text-xs font-mono leading-relaxed text-gray-800">
               {infoKey === 'dressingRoom' && (
-                <div>更衣室稳定代表队内气氛和球员对你的接受度。过低时球队会陷入动乱，归零时挑战失败。</div>
+                <div>{t('更衣室稳定代表队内气氛和球员对你的接受度。过低时球队会陷入动乱，归零时挑战失败。')}</div>
               )}
               {infoKey === 'authority' && (
-                <div>权威代表你对球队的控制力，较低时将会无法执行某些决策。权威归零时，你会被下课。</div>
+                <div>{t('权威代表你对球队的控制力，较低时将会无法执行某些决策。权威归零时，你会被下课。')}</div>
               )}
               {infoKey === 'mediaSupport' && (
-                <div>媒体支持代表舆论环境。负面新闻会压低媒体支持上限。媒体支持较低时，比赛不胜会带来额外的损失。</div>
+                <div>{t('媒体支持代表舆论环境。负面新闻会压低媒体支持上限。媒体支持较低时，比赛不胜会带来额外的损失。')}</div>
               )}
               {infoKey === 'fatigue' && (
-                <div>球队疲惫代表全队身体与精神消耗。疲惫越高，比赛发挥越容易下滑，严重时还可能出现重大失误。</div>
+                <div>{t('球队疲惫代表全队身体与精神消耗。疲惫越高，比赛发挥越容易下滑，严重时还可能出现重大失误。')}</div>
               )}
               {infoKey === 'tactics' && (
-                <div>技战术水平代表球队当前的比赛执行力。它会直接影响比赛强度判定，越高越容易在比赛中占据优势。</div>
+                <div>{t('技战术水平代表球队当前的比赛执行力。它会直接影响比赛强度判定，越高越容易在比赛中占据优势。')}</div>
               )}
             </div>
           </div>
@@ -298,11 +317,11 @@ export default function ChallengeDashboard({ topActions = null }) {
       )}
 
       {showTable && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40" data-i18n-skip>
           <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-md w-full p-3">
             <div className="flex items-center justify-between mb-2">
-              <div className="font-bold text-sm font-mono">赛程</div>
-              <button onClick={() => setShowTable(false)} className="retro-btn text-xs py-1 px-2">关闭</button>
+              <div className="font-bold text-sm font-mono">{t('赛程')}</div>
+              <button onClick={() => setShowTable(false)} className="retro-btn text-xs py-1 px-2">{t('关闭')}</button>
             </div>
             <div className="grid grid-cols-1 gap-2">
               {scheduleEntries.some(entry => entry.type === 'single') ? (
@@ -313,7 +332,7 @@ export default function ChallengeDashboard({ topActions = null }) {
 
               {scheduleEntries.some(entry => entry.type === 'friendly') ? (
                 <div className="border-2 border-black bg-gray-50 p-2">
-                  <div className="font-bold text-sm font-mono border-b-2 border-black pb-1 mb-2">国际友谊赛</div>
+                  <div className="font-bold text-sm font-mono border-b-2 border-black pb-1 mb-2">{t('国际友谊赛')}</div>
                   <div className="grid grid-cols-1 gap-2">
                     {scheduleEntries.filter(entry => entry.type === 'friendly').map(entry => (
                       <div
@@ -328,9 +347,9 @@ export default function ChallengeDashboard({ topActions = null }) {
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="font-bold text-sm flex-1">
-                            <div>{entry.homeName}</div>
+                            <div>{t(entry.homeName)}</div>
                             <div className="mt-1" />
-                            <div>{entry.awayName}</div>
+                            <div>{t(entry.awayName)}</div>
                           </div>
                           <div className="w-14 text-center shrink-0">
                             {entry.completed ? (
@@ -345,7 +364,7 @@ export default function ChallengeDashboard({ topActions = null }) {
                             ) : null}
                           </div>
                           <div className="text-right text-sm shrink-0">
-                            <div>{entry.dateText}</div>
+                            <div>{t(entry.dateText)}</div>
                             <div>{entry.timeText}</div>
                           </div>
                         </div>
@@ -357,7 +376,7 @@ export default function ChallengeDashboard({ topActions = null }) {
 
               {scheduleEntries.some(entry => entry.type === 'group') ? (
                 <div className="border-2 border-black bg-gray-50 p-2">
-                  <div className="font-bold text-sm font-mono border-b-2 border-black pb-1 mb-2">世界杯小组赛 H 组</div>
+                  <div className="font-bold text-sm font-mono border-b-2 border-black pb-1 mb-2">{t('世界杯小组赛 H 组')}</div>
                   <div className="grid grid-cols-1 gap-2">
                     {scheduleEntries.filter(entry => entry.type === 'group').map(entry => (
                       <div
@@ -372,9 +391,9 @@ export default function ChallengeDashboard({ topActions = null }) {
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="font-bold text-sm flex-1">
-                            <div>{entry.homeName}</div>
+                            <div>{t(entry.homeName)}</div>
                             <div className="mt-1" />
-                            <div>{entry.awayName}</div>
+                            <div>{t(entry.awayName)}</div>
                           </div>
                           <div className="w-14 text-center shrink-0">
                             {entry.completed ? (
@@ -389,7 +408,7 @@ export default function ChallengeDashboard({ topActions = null }) {
                             ) : null}
                           </div>
                           <div className="text-right text-sm shrink-0">
-                            <div>{entry.dateText}</div>
+                            <div>{t(entry.dateText)}</div>
                             <div>{entry.timeText}</div>
                           </div>
                         </div>
@@ -404,11 +423,11 @@ export default function ChallengeDashboard({ topActions = null }) {
       )}
 
       {showComplaintLetters ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40" data-i18n-skip>
           <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-2xl w-full p-3">
             <div className="flex items-center justify-between mb-2">
-              <div className="font-bold text-sm font-mono">投诉信</div>
-              <button onClick={() => setShowComplaintLetters(false)} className="retro-btn text-xs py-1 px-2">关闭</button>
+              <div className="font-bold text-sm font-mono">{t('投诉信')}</div>
+              <button onClick={() => setShowComplaintLetters(false)} className="retro-btn text-xs py-1 px-2">{t('关闭')}</button>
             </div>
             {activeComplaintLetter ? (
               <>
@@ -418,7 +437,7 @@ export default function ChallengeDashboard({ topActions = null }) {
                     disabled={complaintLetterIndex === 0}
                     className={`retro-btn text-xs py-1 px-2 ${complaintLetterIndex === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    上一封
+                    {t('上一封')}
                   </button>
                   <div>{complaintLetterIndex + 1} / {complaintLetterHistory.length}</div>
                   <button
@@ -426,22 +445,22 @@ export default function ChallengeDashboard({ topActions = null }) {
                     disabled={complaintLetterIndex >= complaintLetterHistory.length - 1}
                     className={`retro-btn text-xs py-1 px-2 ${complaintLetterIndex >= complaintLetterHistory.length - 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    下一封
+                    {t('下一封')}
                   </button>
                 </div>
-                <div className="border-2 border-black bg-gray-50 p-3">
-                  <div className="font-bold text-sm font-mono mb-2">{activeComplaintLetter.title}</div>
-                  <div className="text-xs font-mono text-black leading-relaxed whitespace-pre-wrap">
-                    {renderFormattedText(activeComplaintLetter.description)}
+                <div key={`${activeComplaintLetter.id}:${language}`} className="border-2 border-black bg-gray-50 p-3">
+                  <div className="font-bold text-sm font-mono mb-2" data-i18n-skip>{localizedActiveComplaint.title}</div>
+                  <div className="text-xs font-mono text-black leading-relaxed whitespace-pre-wrap" data-i18n-skip>
+                    {renderFormattedText(localizedActiveComplaint.description)}
                   </div>
                   {activeComplaintLetter.dateText ? (
-                    <div className="mt-3 text-[10px] text-gray-600 font-mono">{activeComplaintLetter.dateText}</div>
+                    <div className="mt-3 text-[10px] text-gray-600 font-mono">{t(activeComplaintLetter.dateText)}</div>
                   ) : null}
                 </div>
               </>
             ) : (
               <div className="border-2 border-black bg-gray-50 p-3 text-xs font-mono text-gray-700 leading-relaxed">
-                当前还没有可翻阅的投诉信内容。
+                {t('当前还没有可翻阅的投诉信内容。')}
               </div>
             )}
           </div>
@@ -450,34 +469,34 @@ export default function ChallengeDashboard({ topActions = null }) {
 
       <div className="mb-2 border-b-2 border-black pb-1">
         <div className="flex items-start justify-between gap-2">
-          <h2 className="text-base font-bold font-mono uppercase">{currentTeam.name} | 主帅：{playerName}</h2>
+          <h2 className="text-base font-bold font-mono uppercase" data-i18n-skip>{t(currentTeam.name)} | {t('主帅：')}{playerName}</h2>
           {topActions ? (
             <div className="flex shrink-0 items-center gap-1">
               {topActions}
             </div>
           ) : null}
         </div>
-        <div className="mt-1 flex items-start justify-between gap-2">
+        <div className="mt-1 flex items-start justify-between gap-2" data-i18n-skip>
           <div className="flex gap-2">
             <button onClick={() => setShowTable(true)} className="retro-btn text-[11px] py-1 px-2" data-onboard-id="challenge_schedule_button">
-              查看赛程
+              {t('查看赛程')}
             </button>
           </div>
           <div className="shrink-0 max-w-[12rem] text-[10px] sm:text-xs font-mono text-right leading-tight border border-black bg-gray-50 px-2 py-1">
-            <div>{phaseText(challenge)}</div>
-            <div>{challenge?.matchCounter || 0} 场比赛</div>
-            {opponent ? <div>下场：{opponent.name}</div> : null}
+            <div>{phaseText(challenge, t)}</div>
+            <div>{challenge?.matchCounter || 0}{t('场比赛')}</div>
+            {opponent ? <div>{t('下场：')}{t(opponent.name)}</div> : null}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5" data-i18n-skip>
         <StatBar
           onboardId="challenge_stat_dressing_room"
           label={
             <span className="inline-flex items-center gap-1">
-              <span className="font-bold">更衣室稳定</span>
-              <InfoButton onClick={() => setInfoKey('dressingRoom')} />
+              <span className="font-bold">{t('更衣室稳定')}</span>
+              <InfoButton label={t('查看属性说明')} onClick={() => setInfoKey('dressingRoom')} />
             </span>
           }
           value={stats.dressingRoom ?? 0}
@@ -486,8 +505,8 @@ export default function ChallengeDashboard({ topActions = null }) {
           onboardId="challenge_stat_authority"
           label={
             <span className="inline-flex items-center gap-1">
-              <span className="font-bold">权威</span>
-              <InfoButton onClick={() => setInfoKey('authority')} />
+              <span className="font-bold">{t('权威')}</span>
+              <InfoButton label={t('查看属性说明')} onClick={() => setInfoKey('authority')} />
             </span>
           }
           value={stats.authority ?? 0}
@@ -496,8 +515,8 @@ export default function ChallengeDashboard({ topActions = null }) {
           onboardId="challenge_stat_media_support"
           label={
             <span className="inline-flex items-center gap-1">
-              <span className="font-bold">媒体支持</span>
-              <InfoButton onClick={() => setInfoKey('mediaSupport')} />
+              <span className="font-bold">{t('媒体支持')}</span>
+              <InfoButton label={t('查看属性说明')} onClick={() => setInfoKey('mediaSupport')} />
             </span>
           }
           value={stats.mediaSupport ?? 0}
@@ -507,8 +526,8 @@ export default function ChallengeDashboard({ topActions = null }) {
           onboardId="challenge_stat_fatigue"
           label={
             <span className="inline-flex items-center gap-1">
-              <span className="font-bold">球队疲惫</span>
-              <InfoButton onClick={() => setInfoKey('fatigue')} />
+              <span className="font-bold">{t('球队疲惫')}</span>
+              <InfoButton label={t('查看属性说明')} onClick={() => setInfoKey('fatigue')} />
             </span>
           }
           value={stats.fatigue ?? 0}
@@ -516,8 +535,8 @@ export default function ChallengeDashboard({ topActions = null }) {
         <div className="mb-1" data-onboard-id="challenge_stat_tactics">
           <div className="flex justify-between text-[11px] mb-0.5 font-mono">
             <span className="inline-flex items-center gap-1">
-              <span className="font-bold">技战术水平</span>
-              <InfoButton onClick={() => setInfoKey('tactics')} />
+              <span className="font-bold">{t('技战术水平')}</span>
+              <InfoButton label={t('查看属性说明')} onClick={() => setInfoKey('tactics')} />
             </span>
             <span>{stats.tactics ?? 0}/10</span>
           </div>
@@ -527,13 +546,13 @@ export default function ChallengeDashboard({ topActions = null }) {
         </div>
         <div className="mb-1" data-onboard-id="challenge_points_ranking">
           <div className="flex justify-between text-[11px] mb-0.5 font-mono">
-            <span className="font-bold">积分 / 排名</span>
-            <span>{pointsRankingText(challenge, stats)}</span>
+            <span className="font-bold">{t('积分 / 排名')}</span>
+            <span>{pointsRankingText(challenge, stats, t)}</span>
           </div>
         </div>
       </div>
 
-      <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-mono">
+      <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-mono" data-i18n-skip>
         <div
           data-onboard-id="challenge_complaints"
           role="button"
@@ -551,32 +570,32 @@ export default function ChallengeDashboard({ topActions = null }) {
           }}
           className={`border-2 border-black p-2 bg-white text-left ${complaintLetters > 0 || complaintLetterHistory.length > 0 ? 'hover:bg-gray-100 cursor-pointer' : 'cursor-pointer'} focus:outline-none focus:ring-2 focus:ring-black`}
         >
-          <div className="font-bold">投诉信</div>
-          <div className="mt-1">{complaintLetters > 0 ? `✉️ x${complaintLetters}` : '暂无投诉信'}</div>
+          <div className="font-bold">{t('投诉信')}</div>
+          <div className="mt-1">{complaintLetters > 0 ? `✉️ x${complaintLetters}` : t('暂无投诉信')}</div>
         </div>
         <div className="border-2 border-black p-2 bg-white" data-onboard-id="challenge_negative_news">
-          <div className="font-bold">负面新闻</div>
+          <div className="font-bold">{t('负面新闻')}</div>
           <div className="mt-1">
             {visibleNegativeNews.length > 0
-              ? `📰 x${visibleNegativeNews.length} · 媒体支持上限 -${negativeNewsPenalty}`
-              : '暂无负面新闻'}
+              ? t(`📰 x${visibleNegativeNews.length} · 媒体支持上限 -${negativeNewsPenalty}`)
+              : t('暂无负面新闻')}
           </div>
         </div>
       </div>
 
-      <div className="retro-box p-2 mt-2" data-onboard-id="challenge_status_pool">
+      <div className="retro-box p-2 mt-2" data-onboard-id="challenge_status_pool" data-i18n-skip>
         <div className="flex items-center justify-between border-b-2 border-black pb-1 mb-2">
-          <h3 className="text-sm font-bold font-mono uppercase">状态</h3>
+          <h3 className="text-sm font-bold font-mono uppercase">{t('状态')}</h3>
           <button
             onClick={() => setShowStatusCards(value => !value)}
             className="retro-btn text-[10px] py-1 px-2"
           >
-            {showStatusCards ? '收起' : `展开${statusCards.length > 0 ? `（${statusCards.length}）` : ''}`}
+            {showStatusCards ? t('收起') : t(`展开${statusCards.length > 0 ? `（${statusCards.length}）` : ''}`)}
           </button>
         </div>
         {!showStatusCards ? null : statusCards.length === 0 ? (
           <div className="text-gray-500 font-mono italic text-center py-2 text-xs">
-            当前无特殊状态
+            {t('当前无特殊状态')}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-2">
@@ -591,8 +610,8 @@ export default function ChallengeDashboard({ topActions = null }) {
                 >
                   <div className="text-base">{card.icon}</div>
                   <div className="flex-1">
-                    <div className={`font-bold text-xs ${isBuff ? 'text-green-900' : 'text-red-900'}`}>{card.name}</div>
-                    <div className="text-[10px] text-gray-700 font-mono leading-tight">{card.description}</div>
+                    <div className={`font-bold text-xs ${isBuff ? 'text-green-900' : 'text-red-900'}`}>{t(card.name)}</div>
+                    <div className="text-[10px] text-gray-700 font-mono leading-tight">{t(card.description)}</div>
                   </div>
                 </div>
               );

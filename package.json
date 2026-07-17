@@ -7,6 +7,12 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "i18n:audit": "node scripts/audit-translations.mjs",
+    "i18n:test-complaint": "node scripts/test-complaint-i18n.mjs",
+    "i18n:test-challenge": "node scripts/test-challenge-i18n.mjs",
+    "i18n:test-quarter": "node scripts/test-quarter-i18n.mjs",
+    "i18n:test-ucl": "node scripts/test-ucl-i18n.mjs",
+    "i18n:test-youth": "node scripts/test-youth-traits.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

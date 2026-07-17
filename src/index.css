@@ -12,6 +12,44 @@
     background-color: #e0e0e0;
     color: #000;
   }
+
+  html[lang="en"] body {
+    font-family: 'VT323', ui-monospace, monospace;
+  }
+}
+
+.language-toggle {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 10000;
+  display: inline-flex;
+  overflow: hidden;
+  border: 2px solid #000;
+  background: #fff;
+  box-shadow: 2px 2px 0 0 #000;
+}
+
+.language-toggle button {
+  min-width: 44px;
+  padding: 4px 8px;
+  border: 0;
+  background: #fff;
+  color: #000;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.language-toggle button + button {
+  border-left: 2px solid #000;
+}
+
+.language-toggle button.is-active {
+  background: #facc15;
+}
+
+.language-toggle button:active {
+  transform: translate(1px, 1px);
 }
 
 @layer components {

@@ -3,6 +3,7 @@ import teamsData from '../data/teams.json';
 import eventsData from '../data/events.json';
 import { CHALLENGE_ACHIEVEMENTS } from '../data/achievements';
 import { getLeagueRoster, getUclSeedPool } from '../data/leagues';
+import { repairYouthTraits } from '../utils/youthTraitRepair';
 import {
   CHALLENGE_LEGENDS,
   CHALLENGE_MODE_TEAM,
@@ -258,26 +259,27 @@ function generateYouthPlayer({ freePoints = 0, techMin = 5, techMax = 5 } = {}) 
 
 function normalizeYouthPlayer(raw) {
   if (!raw || typeof raw !== 'object') return null;
+  const repaired = repairYouthTraits(raw);
   return {
-    id: typeof raw.id === 'string' && raw.id ? raw.id : makeYouthId(),
-    name: typeof raw.name === 'string' ? raw.name : '',
-    age: clampInt(raw.age ?? 17, 0, 99),
-    unity: clampInt(raw.unity ?? 0, 0, 10),
-    authority: clampInt(raw.authority ?? 0, 0, 10),
-    diligence: clampInt(raw.diligence ?? 0, 0, 10),
-    tech: clampNumber(raw.tech ?? 4, 0, YOUTH_TECH_MAX),
-    freePoints: clampInt(raw.freePoints ?? 0, 0, 9999),
-    starterMatches: clampInt(raw.starterMatches ?? 0, 0, 999999),
-    benchMatches: clampInt(raw.benchMatches ?? 0, 0, 999999),
-    role: (raw.role === 'starter' || raw.role === 'bench') ? raw.role : 'bench',
-    hasArmband: Boolean(raw.hasArmband),
-    positiveTraitId: (typeof raw.positiveTraitId === 'string' && raw.positiveTraitId) ? raw.positiveTraitId : null,
-    negativeTraitId: (typeof raw.negativeTraitId === 'string' && raw.negativeTraitId) ? raw.negativeTraitId : null,
-    specialTraitId: (typeof raw.specialTraitId === 'string' && raw.specialTraitId) ? raw.specialTraitId : null,
-    traitRerollUsed: Boolean(raw.traitRerollUsed),
-    moleCaughtCount: clampInt(raw.moleCaughtCount ?? 0, 0, 999999),
-    ecoMissingSeasonYear: clampInt(raw.ecoMissingSeasonYear ?? 0, 0, 99),
-    ecoMissingQuarter: clampInt(raw.ecoMissingQuarter ?? 0, 0, 3)
+    id: typeof repaired.id === 'string' && repaired.id ? repaired.id : makeYouthId(),
+    name: typeof repaired.name === 'string' ? repaired.name : '',
+    age: clampInt(repaired.age ?? 17, 0, 99),
+    unity: clampInt(repaired.unity ?? 0, 0, 10),
+    authority: clampInt(repaired.authority ?? 0, 0, 10),
+    diligence: clampInt(repaired.diligence ?? 0, 0, 10),
+    tech: clampNumber(repaired.tech ?? 4, 0, YOUTH_TECH_MAX),
+    freePoints: clampInt(repaired.freePoints ?? 0, 0, 9999),
+    starterMatches: clampInt(repaired.starterMatches ?? 0, 0, 999999),
+    benchMatches: clampInt(repaired.benchMatches ?? 0, 0, 999999),
+    role: (repaired.role === 'starter' || repaired.role === 'bench') ? repaired.role : 'bench',
+    hasArmband: Boolean(repaired.hasArmband),
+    positiveTraitId: repaired.positiveTraitId,
+    negativeTraitId: repaired.negativeTraitId,
+    specialTraitId: repaired.specialTraitId,
+    traitRerollUsed: Boolean(repaired.traitRerollUsed),
+    moleCaughtCount: clampInt(repaired.moleCaughtCount ?? 0, 0, 999999),
+    ecoMissingSeasonYear: clampInt(repaired.ecoMissingSeasonYear ?? 0, 0, 99),
+    ecoMissingQuarter: clampInt(repaired.ecoMissingQuarter ?? 0, 0, 3)
   };
 }
 
@@ -1958,6 +1960,7 @@ function buildChallengeComplaintEvent(letter, playerName, complaintDateText = ''
     : { mediaSupport: -10 };
   return {
     id: `challenge_complaint_${letter.id}`,
+    letterId: letter.id,
     title: letter.title || '投诉信',
     description: formatChallengeTemplate(letter.description, playerName),
     options: [{ text: '继续', effects: randomPenalty }],

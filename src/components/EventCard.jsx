@@ -1,15 +1,22 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useGame } from '../context/GameContextInstance';
 import eventsData from '../data/events.json';
+import { useLanguage } from '../i18n/LanguageContext';
+import { translateRenderedText } from '../i18n/translations';
 
 const EventCard = () => {
   const { state, dispatch } = useGame();
+  const { language } = useLanguage();
   const { currentEvent, activeDecisionsTaken, currentTeam, specialMechanicState, uclTeams16, uclDrawCandidates } = state;
 
   const [expandedDecisionId, setExpandedDecisionId] = useState(null);
   const [infoDecisionId, setInfoDecisionId] = useState(null);
   const [confirmExplode, setConfirmExplode] = useState(null);
   const [confirmEventOption, setConfirmEventOption] = useState(null);
+  const translateText = useCallback(
+    (text) => language === 'en' ? translateRenderedText(text) : text,
+    [language]
+  );
   
   // Calculate remaining points dynamically
   const remainingPoints = state.decisionPoints;
@@ -68,13 +75,18 @@ const EventCard = () => {
 
   const replaceDynamicText = (text) => {
     if (!text) return text;
-    const teamName = state.currentTeam?.name || '';
-    return text
+    const teamName = translateText(state.currentTeam?.name || '');
+    return translateText(text)
       .replace(/\[名字\]/g, state.playerName)
+      .replace(/\[Name\]/g, state.playerName)
       .replace(/\[俱乐部\]/g, teamName)
+      .replace(/\[Club\]/g, teamName)
       .replace(/\[执教理念\]/g, state.coachingPhilosophy)
+      .replace(/\[Philosophy\]/g, state.coachingPhilosophy)
       .replace(/\[教练名字\]/g, state.playerName)
-      .replace(/\[俱乐部名字\]/g, teamName);
+      .replace(/\[(?:Manager|Coach) Name\]/g, state.playerName)
+      .replace(/\[俱乐部名字\]/g, teamName)
+      .replace(/\[Club Name\]/g, teamName);
   };
 
   const getDecisionInfoText = (decisionId) => {
@@ -233,9 +245,9 @@ const EventCard = () => {
                             className="flex-1 text-left"
                         >
                             <div className="flex items-center gap-1">
-                                <h4 className="font-bold text-sm">{decision.title}</h4>
+                                <h4 className="font-bold text-sm" data-i18n-skip>{translateText(decision.title)}</h4>
                             </div>
-                            {description && <p className="text-xs font-mono leading-tight text-gray-700">{description}</p>}
+                            {description && <p className="text-xs font-mono leading-tight text-gray-700" data-i18n-skip>{description}</p>}
                             {!decision.options && decision.effects && (
                                 <p className="text-[8px] text-gray-600 mt-1 font-mono">
                                     后果: {formatEffects(decision.effects)}
@@ -371,7 +383,7 @@ const EventCard = () => {
                                         disabled={disabled}
                                         className={`retro-btn text-xs w-full py-1 px-2 mt-2 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
-                                        {buttonText}
+                                        <span data-i18n-skip>{translateText(buttonText)}</span>
                                     </button>
                                 );
                             })()
@@ -402,8 +414,8 @@ const EventCard = () => {
       <div className="retro-box p-3 border-l-[6px] border-l-yellow-500 ucl-celebrate">
         <div className="text-center">
           <div className="text-3xl">🏆</div>
-          <h3 className="text-lg font-bold mt-1 font-mono uppercase">{currentEvent.title}</h3>
-          <div className="text-sm font-mono leading-relaxed mt-2">
+          <h3 className="text-lg font-bold mt-1 font-mono uppercase" data-i18n-skip>{translateText(currentEvent.title)}</h3>
+          <div className="text-sm font-mono leading-relaxed mt-2" data-i18n-skip>
             {replaceDynamicText(currentEvent.description)}
           </div>
           <div className="mt-3">
@@ -411,7 +423,7 @@ const EventCard = () => {
               onClick={() => dispatch({ type: 'RESOLVE_EVENT', payload: opt })}
               className="retro-btn-primary w-full text-sm py-2"
             >
-              {replaceDynamicText(opt.text || '继续')}
+              <span data-i18n-skip>{replaceDynamicText(opt.text || '继续')}</span>
             </button>
           </div>
         </div>
@@ -426,7 +438,7 @@ const EventCard = () => {
           <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-sm w-full p-3">
             <div className="font-bold text-sm font-mono mb-2">确认</div>
             <div className="text-xs font-mono text-gray-800 leading-relaxed mb-3">
-              {confirmEventOption.confirmText || '你确定要这么做吗？'}
+              {translateText(confirmEventOption.confirmText || '你确定要这么做吗？')}
             </div>
             <div className="flex justify-end gap-2">
               <button
@@ -451,8 +463,8 @@ const EventCard = () => {
           </div>
         </div>
       )}
-      <h3 className="text-base font-bold mb-2 font-mono uppercase">{currentEvent.title}</h3>
-      <p className="text-sm mb-2 font-mono leading-relaxed">
+      <h3 className="text-base font-bold mb-2 font-mono uppercase" data-i18n-skip>{translateText(currentEvent.title)}</h3>
+      <p className="text-sm mb-2 font-mono leading-relaxed" data-i18n-skip>
           {replaceDynamicText(currentEvent.description)}
       </p>
 
@@ -525,7 +537,7 @@ const EventCard = () => {
                         }}
                         className="retro-btn text-left flex justify-between items-center group py-2 px-2"
                     >
-                        <span className="text-xs font-bold group-hover:underline">{optText}</span>
+                        <span className="text-xs font-bold group-hover:underline" data-i18n-skip>{optText}</span>
                         {!currentEvent.revealAfterChoice && opt.effects && Object.keys(opt.effects).length > 0 && (
                           <span className="text-[8px] text-gray-500 ml-2 font-mono">
                               {formatEffects(opt.effects)}
