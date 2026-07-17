@@ -5,19 +5,23 @@ import { translateRenderedText } from '../i18n/translations';
 
 const StatBar = ({ label, value, max = 100, showBar = true }) => {
   const percentage = max ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
+  const valueText = `${value}${max !== null ? `/${max}` : ''}`;
   
   return (
-    <div className="mb-1">
-      <div className="flex justify-between text-[11px] mb-0.5 font-mono">
-        <span className="font-bold">{label}</span>
-        <span>{value}{max !== null ? `/${max}` : ''}</span>
+    <div className="dashboard-stat mb-1">
+      <div className="dashboard-stat-header flex justify-between text-[11px] mb-0.5 font-mono">
+        <span className="dashboard-stat-label font-bold">{label}</span>
+        <span className="dashboard-stat-value-header shrink-0">{valueText}</span>
       </div>
       {showBar && (
-        <div className="retro-progress-container">
-          <div
-            className="retro-progress-bar"
-            style={{ width: `${percentage}%` }}
-          ></div>
+        <div className="dashboard-stat-meter-row">
+          <div className="retro-progress-container">
+            <div
+              className="retro-progress-bar"
+              style={{ width: `${percentage}%` }}
+            ></div>
+          </div>
+          <span className="dashboard-stat-value-mobile shrink-0 font-mono">{valueText}</span>
         </div>
       )}
     </div>
@@ -201,7 +205,7 @@ const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+      <div className="dashboard-stats-grid grid grid-cols-2 gap-x-3 gap-y-0.5">
         <div data-onboard-id="stat_board_support">
           <StatBar
             label={
@@ -300,16 +304,29 @@ const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
           </div>
 
           <div className="text-[11px] font-mono text-gray-700" data-onboard-id="trophy_display">
-            <span className="inline-flex items-center gap-1">
-              <span>🏆</span>
-              <span data-i18n-skip>
-                {language === 'en' ? 'League Titles' : '联赛'} {Array.isArray(state.leagueChampionYears) ? state.leagueChampionYears.length : 0}
+            {language === 'en' ? (
+              <>
+                <span className="inline-flex sm:hidden items-center gap-1 whitespace-nowrap" data-i18n-skip>
+                  <span>🏆</span>
+                  <span>League {Array.isArray(state.leagueChampionYears) ? state.leagueChampionYears.length : 0}</span>
+                  <span className="text-gray-400">|</span>
+                  <span>UCL {Array.isArray(state.uclChampionYears) ? state.uclChampionYears.length : 0}</span>
+                </span>
+                <span className="hidden sm:inline-flex items-center gap-1" data-i18n-skip>
+                  <span>🏆</span>
+                  <span>League Titles {Array.isArray(state.leagueChampionYears) ? state.leagueChampionYears.length : 0}</span>
+                  <span className="text-gray-400">|</span>
+                  <span>Champions League Titles {Array.isArray(state.uclChampionYears) ? state.uclChampionYears.length : 0}</span>
+                </span>
+              </>
+            ) : (
+              <span className="inline-flex items-center gap-1">
+                <span>🏆</span>
+                <span>联赛 {Array.isArray(state.leagueChampionYears) ? state.leagueChampionYears.length : 0}</span>
+                <span className="text-gray-400">|</span>
+                <span>欧冠 {Array.isArray(state.uclChampionYears) ? state.uclChampionYears.length : 0}</span>
               </span>
-              <span className="text-gray-400">|</span>
-              <span data-i18n-skip>
-                {language === 'en' ? 'Champions League Titles' : '欧冠'} {Array.isArray(state.uclChampionYears) ? state.uclChampionYears.length : 0}
-              </span>
-            </span>
+            )}
           </div>
         </div>
         <div data-onboard-id="stat_tactics">

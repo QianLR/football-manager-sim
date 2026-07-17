@@ -11,10 +11,16 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <LanguageProvider>
       <RenderedTranslator />
-      <LanguageToggle />
-      <GameProvider>
-        <App />
-      </GameProvider>
+      <div className="app-shell">
+        <div className="language-toggle-bar">
+          <LanguageToggle />
+        </div>
+        <div className="app-shell-content">
+          <GameProvider>
+            <App />
+          </GameProvider>
+        </div>
+      </div>
     </LanguageProvider>
   </StrictMode>,
 )
