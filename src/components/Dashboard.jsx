@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGame } from '../context/GameContextInstance';
 import { useLanguage } from '../i18n/LanguageContext';
 import { translateRenderedText } from '../i18n/translations';
@@ -28,7 +28,7 @@ const StatBar = ({ label, value, max = 100, showBar = true }) => {
   );
 };
 
-const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
+const Dashboard = ({ onOpenYouthAcademy, topActions = null, onInfoOpenChange = null }) => {
   const { state } = useGame();
   const { language } = useLanguage();
   const { stats, currentTeam, month, quarter, year, tabloidCount, playerName, estimatedRanking, specialMechanicState } = state;
@@ -36,6 +36,17 @@ const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
   const [infoKey, setInfoKey] = useState(null);
   const [showSchedule, setShowSchedule] = useState(false);
   const uiText = text => language === 'en' ? translateRenderedText(text) : text;
+
+  const openInfo = key => {
+    setInfoKey(key);
+    onInfoOpenChange?.(true);
+  };
+  const closeInfo = () => {
+    setInfoKey(null);
+    onInfoOpenChange?.(false);
+  };
+
+  useEffect(() => () => onInfoOpenChange?.(false), [onInfoOpenChange]);
 
   if (!currentTeam) return null;
 
@@ -97,7 +108,7 @@ const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
             <div className="flex items-center justify-between mb-2">
               <div className="font-bold text-sm font-mono">{uiText('说明')}</div>
               <button
-                onClick={() => setInfoKey(null)}
+                onClick={closeInfo}
                 className="retro-btn text-xs py-1 px-2"
               >
                 {uiText('关闭')}
@@ -212,7 +223,7 @@ const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
               <span className="inline-flex items-center gap-1">
                 <span className="font-bold">管理层支持</span>
                 <button
-                  onClick={() => setInfoKey('boardSupport')}
+                  onClick={() => openInfo('boardSupport')}
                   className="retro-btn text-[10px] py-0 px-1"
                   aria-label={language === 'en' ? 'View Board Support Information' : '查看管理层支持说明'}
                 >
@@ -230,7 +241,7 @@ const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
               <span className="inline-flex items-center gap-1">
                 <span className="font-bold">更衣室稳定</span>
                 <button
-                  onClick={() => setInfoKey(isBayernDressingRoomHidden ? 'bayern_dressingRoom' : 'dressingRoom')}
+                  onClick={() => openInfo(isBayernDressingRoomHidden ? 'bayern_dressingRoom' : 'dressingRoom')}
                   className="retro-btn text-[10px] py-0 px-1"
                   aria-label={language === 'en' ? 'View Dressing Room Stability Information' : '查看更衣室稳定说明'}
                 >
@@ -248,7 +259,7 @@ const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
               <span className="inline-flex items-center gap-1">
                 <span className="font-bold">媒体支持</span>
                 <button
-                  onClick={() => setInfoKey('mediaSupport')}
+                  onClick={() => openInfo('mediaSupport')}
                   className="retro-btn text-[10px] py-0 px-1"
                 >
                   ?
@@ -265,7 +276,7 @@ const Dashboard = ({ onOpenYouthAcademy, topActions = null }) => {
               <span className="inline-flex items-center gap-1">
                 <span className="font-bold">话语权</span>
                 <button
-                  onClick={() => setInfoKey('authority')}
+                  onClick={() => openInfo('authority')}
                   className="retro-btn text-[10px] py-0 px-1"
                 >
                   ?

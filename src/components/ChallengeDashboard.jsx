@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useGame } from '../context/GameContextInstance';
 import { CHALLENGE_COMPLAINT_LETTERS, CHALLENGE_FRIENDLY_SCHEDULE, CHALLENGE_GROUP_FIXTURES, CHALLENGE_GROUP_TEAMS } from '../data/challengeMode';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -179,7 +179,7 @@ function getScheduleEntries(challenge, t) {
   return [{ id: 'empty', text: t('未安排赛程'), type: 'empty' }];
 }
 
-export default function ChallengeDashboard({ topActions = null }) {
+export default function ChallengeDashboard({ topActions = null, onInfoOpenChange = null }) {
   const { state } = useGame();
   const { language } = useLanguage();
   const { currentTeam, playerName, stats, challenge } = state;
@@ -189,6 +189,17 @@ export default function ChallengeDashboard({ topActions = null }) {
   const [showComplaintLetters, setShowComplaintLetters] = useState(false);
   const [showStatusCards, setShowStatusCards] = useState(false);
   const [complaintLetterIndex, setComplaintLetterIndex] = useState(0);
+
+  const openInfo = key => {
+    setInfoKey(key);
+    onInfoOpenChange?.(true);
+  };
+  const closeInfo = () => {
+    setInfoKey(null);
+    onInfoOpenChange?.(false);
+  };
+
+  useEffect(() => () => onInfoOpenChange?.(false), [onInfoOpenChange]);
 
   const groupStandings = useMemo(() => {
     const table = Array.isArray(challenge?.groupTable) ? challenge.groupTable.slice() : [];
@@ -293,7 +304,7 @@ export default function ChallengeDashboard({ topActions = null }) {
           <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-md w-full p-3">
             <div className="flex items-center justify-between mb-2">
               <div className="font-bold text-sm font-mono">{t('属性说明')}</div>
-              <button onClick={() => setInfoKey(null)} className="retro-btn text-xs py-1 px-2">{t('关闭')}</button>
+              <button onClick={closeInfo} className="retro-btn text-xs py-1 px-2">{t('关闭')}</button>
             </div>
             <div className="text-xs font-mono leading-relaxed text-gray-800">
               {infoKey === 'dressingRoom' && (
@@ -496,7 +507,7 @@ export default function ChallengeDashboard({ topActions = null }) {
           label={
             <span className="inline-flex items-center gap-1">
               <span className="font-bold">{t('更衣室稳定')}</span>
-              <InfoButton label={t('查看属性说明')} onClick={() => setInfoKey('dressingRoom')} />
+              <InfoButton label={t('查看属性说明')} onClick={() => openInfo('dressingRoom')} />
             </span>
           }
           value={stats.dressingRoom ?? 0}
@@ -506,7 +517,7 @@ export default function ChallengeDashboard({ topActions = null }) {
           label={
             <span className="inline-flex items-center gap-1">
               <span className="font-bold">{t('权威')}</span>
-              <InfoButton label={t('查看属性说明')} onClick={() => setInfoKey('authority')} />
+              <InfoButton label={t('查看属性说明')} onClick={() => openInfo('authority')} />
             </span>
           }
           value={stats.authority ?? 0}
@@ -516,7 +527,7 @@ export default function ChallengeDashboard({ topActions = null }) {
           label={
             <span className="inline-flex items-center gap-1">
               <span className="font-bold">{t('媒体支持')}</span>
-              <InfoButton label={t('查看属性说明')} onClick={() => setInfoKey('mediaSupport')} />
+              <InfoButton label={t('查看属性说明')} onClick={() => openInfo('mediaSupport')} />
             </span>
           }
           value={stats.mediaSupport ?? 0}
@@ -527,7 +538,7 @@ export default function ChallengeDashboard({ topActions = null }) {
           label={
             <span className="inline-flex items-center gap-1">
               <span className="font-bold">{t('球队疲惫')}</span>
-              <InfoButton label={t('查看属性说明')} onClick={() => setInfoKey('fatigue')} />
+              <InfoButton label={t('查看属性说明')} onClick={() => openInfo('fatigue')} />
             </span>
           }
           value={stats.fatigue ?? 0}
@@ -536,7 +547,7 @@ export default function ChallengeDashboard({ topActions = null }) {
           <div className="flex justify-between text-[11px] mb-0.5 font-mono">
             <span className="inline-flex items-center gap-1">
               <span className="font-bold">{t('技战术水平')}</span>
-              <InfoButton label={t('查看属性说明')} onClick={() => setInfoKey('tactics')} />
+              <InfoButton label={t('查看属性说明')} onClick={() => openInfo('tactics')} />
             </span>
             <span>{stats.tactics ?? 0}/10</span>
           </div>

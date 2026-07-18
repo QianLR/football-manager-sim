@@ -332,6 +332,7 @@ function App() {
   const [achievementsModalUnlockedMap, setAchievementsModalUnlockedMap] = useState(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showYouthAcademyModal, setShowYouthAcademyModal] = useState(false);
+  const [showAttributeInfoModal, setShowAttributeInfoModal] = useState(false);
   const [globalAchievements, setGlobalAchievements] = useState(() => readGlobalAchievements());
 
   const globalUnlockedCount = useMemo(() => Object.keys(globalAchievements || {}).length, [globalAchievements]);
@@ -1664,12 +1665,16 @@ function App() {
       <div className="max-w-6xl w-full h-full mx-auto flex flex-col gap-2 relative">
         <div className="space-y-2 overflow-auto">
           {state.selectedGameMode === 'challenge' ? (
-            <ChallengeDashboard topActions={playingTopActions} />
+            <ChallengeDashboard
+              topActions={playingTopActions}
+              onInfoOpenChange={setShowAttributeInfoModal}
+            />
           ) : (
             <>
               <Dashboard
                 onOpenYouthAcademy={() => setShowYouthAcademyModal(true)}
                 topActions={playingTopActions}
+                onInfoOpenChange={setShowAttributeInfoModal}
               />
               <BuffPool />
             </>
@@ -1705,7 +1710,7 @@ function App() {
         onClose={() => setShowYouthAcademyModal(false)}
       />
 
-      {showOnboarding && state.gameState === 'playing' && (
+      {showOnboarding && !showAttributeInfoModal && state.gameState === 'playing' && (
         <OnboardingOverlay
           stepIndex={onboardingStep}
           steps={onboardingSteps}
@@ -1731,7 +1736,7 @@ function App() {
         />
       )}
 
-      {showChallengeOnboarding && state.gameState === 'playing' && state.selectedGameMode === 'challenge' && (
+      {showChallengeOnboarding && !showAttributeInfoModal && state.gameState === 'playing' && state.selectedGameMode === 'challenge' && (
         <OnboardingOverlay
           stepIndex={challengeOnboardingStep}
           steps={challengeOnboardingSteps}
@@ -1761,7 +1766,7 @@ function App() {
         />
       )}
 
-      {showYouthOnboarding && state.gameState === 'playing' && (
+      {showYouthOnboarding && !showAttributeInfoModal && state.gameState === 'playing' && (
         <OnboardingOverlay
           stepIndex={youthOnboardingStep}
           steps={youthOnboardingSteps}
@@ -1788,7 +1793,7 @@ function App() {
         />
       )}
 
-      {showSeason2Onboarding && state.gameState === 'playing' && (
+      {showSeason2Onboarding && !showAttributeInfoModal && state.gameState === 'playing' && (
         <OnboardingOverlay
           stepIndex={season2OnboardingStep}
           steps={season2OnboardingSteps}
