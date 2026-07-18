@@ -300,7 +300,7 @@ export default function ChallengeDashboard({ topActions = null, onInfoOpenChange
   return (
     <div className="retro-box p-2">
       {infoKey && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40" data-i18n-skip>
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-3 bg-black/40" data-i18n-skip>
           <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-md w-full p-3">
             <div className="flex items-center justify-between mb-2">
               <div className="font-bold text-sm font-mono">{t('属性说明')}</div>

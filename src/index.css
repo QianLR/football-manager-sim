@@ -98,6 +98,12 @@
     min-height: 100% !important;
   }
 
+  .app-shell-content > .app-start-screen-selection {
+    height: auto !important;
+    min-height: 100% !important;
+    justify-content: flex-start;
+  }
+
   html[lang="en"] .dashboard-stats-grid .dashboard-stat-header {
     justify-content: flex-start;
   }

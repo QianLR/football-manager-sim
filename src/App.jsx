@@ -999,7 +999,7 @@ function App() {
     };
 
     return (
-      <div className="min-h-screen bg-[#e0e0e0] flex items-center justify-center p-2">
+      <div className={`app-start-screen min-h-screen bg-[#e0e0e0] flex items-center justify-center p-2 ${selectedMode ? 'app-start-screen-selection' : ''}`}>
         <AchievementToast toast={currentToast} />
         <div className="retro-box p-3 max-w-sm w-full">
           {teamInfoId && (
