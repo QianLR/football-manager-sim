@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useGame } from '../context/GameContextInstance';
 import eventsData from '../data/events.json';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -17,7 +18,7 @@ const EventCard = () => {
     (text) => language === 'en' ? translateRenderedText(text) : text,
     [language]
   );
-  
+
   // Calculate remaining points dynamically
   const remainingPoints = state.decisionPoints;
 
@@ -194,8 +195,8 @@ const EventCard = () => {
             </div>
           </div>
         )}
-        {infoDecisionId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40">
+        {infoDecisionId && createPortal(
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-3 bg-black/40">
             <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-w-md w-full p-3">
               <div className="flex items-center justify-between mb-2">
                 <div className="font-bold text-sm font-mono">说明</div>
@@ -210,7 +211,8 @@ const EventCard = () => {
                 {getDecisionInfoText(infoDecisionId)}
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
         <h3 className="text-base font-bold mb-2 font-mono uppercase border-b-2 border-black pb-1">
             本月决策 (剩余: {remainingPoints})
